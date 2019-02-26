@@ -20,7 +20,7 @@ defmodule Receiver do
       quote do: alias(module_name)
 
       defmodule module_name do
-        use Agent
+        use Agent, restart: :transient
 
         def start_link(arg)
 
@@ -35,18 +35,9 @@ defmodule Receiver do
         def start_link(arg) do
           Agent.start_link(fn -> arg end, name: __MODULE__)
         end
-
-        def get do
-          Agent.get(__MODULE__, & &1)
-        end
-
-        def update(fun) do
-          Agent.update(__MODULE__, fun)
-        end
       end
 
       if test do
-
         def unquote(:"start_#{name}")(args \\ []) do
           start_supervised({@receiver_module_name, args})
         end
@@ -54,9 +45,7 @@ defmodule Receiver do
         def unquote(:"start_#{name}")(module, fun, args) do
           start_supervised({@receiver_module_name, [module, fun, args]})
         end
-
       else
-
         def unquote(:"start_#{name}")(args \\ []) do
           DynamicSupervisor.start_child(Receiver.Supervisor, {@receiver_module_name, args})
         end
@@ -64,15 +53,18 @@ defmodule Receiver do
         def unquote(:"start_#{name}")(module, fun, args) do
           DynamicSupervisor.start_child(Receiver.Supervisor, {@receiver_module_name, [module, fun, args]})
         end
+      end
 
+      def unquote(:"stop_#{name}")(reason \\ :normal, timeout \\ :infinity) do
+        Agent.stop(@receiver_module_name, reason, timeout)
       end
 
       def unquote(:"get_#{name}")() do
-        @receiver_module_name.get()
+        Agent.get(@receiver_module_name, & &1)
       end
 
       def unquote(:"update_#{name}")(fun) do
-        @receiver_module_name.update(fun)
+        Agent.update(@receiver_module_name, fun)
       end
     end
   end
