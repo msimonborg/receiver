@@ -28,6 +28,7 @@ A simple wrapper around an `Agent` that reduces boilerplate code and makes it ea
 
   ## Example
 
+  ```elixir
       defmodule Counter do
         @moduledoc false
         use GenServer
@@ -68,6 +69,7 @@ A simple wrapper around an `Agent` that reduces boilerplate code and makes it ea
           update_stash(state)
         end
       end
+  ```
 
   The line `use Receiver, as: :stash` creates a module and named `Agent` process with the name `Counter.Stash`.
   The stash is supervised in the `Receiver` application supervision tree, not in your own application's. It also
@@ -87,6 +89,7 @@ A simple wrapper around an `Agent` that reduces boilerplate code and makes it ea
 
   The `Counter` can now be supervised and its state will be isolated from failure and persisted across restarts.
 
+  ```elixir
       # Start the counter under a supervisor
       {:ok, _pid} = Supervisor.start_link([{Counter, 0}], strategy: :one_for_one)
 
@@ -117,3 +120,4 @@ A simple wrapper around an `Agent` that reduces boilerplate code and makes it ea
       # Get the state of the stash, which was updated when the counter exited
       Counter.get_stash()
       #=> 2
+  ```
