@@ -1,4 +1,5 @@
 defmodule Receiver.Example.Counter do
+  @moduledoc false
   use GenServer
   use Receiver, as: :stash
 
