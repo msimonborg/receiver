@@ -18,13 +18,13 @@ A simple wrapper around an `Agent` that reduces boilerplate code and makes it ea
 
   # Use cases
 
-    * Storing persistent process state outside of the worker process, or as a shared repository
-    for multiple processes.
+  * Storing persistent process state outside of the worker process, or as a shared repository
+  for multiple processes.
 
-    * Creating a "stash" to persist process state across restarts. See example below.
+  * Creating a "stash" to persist process state across restarts. See example below.
 
-    * Testing higher order functions. By passing a function call to a `Receiver` process into a higher
-    order function you can test if the function is executed as intended by checking the change in state.
+  * Testing higher order functions. By passing a function call to a `Receiver` process into a higher
+  order function you can test if the function is executed as intended by checking the change in state.
 
   ## Example
 
@@ -75,14 +75,14 @@ A simple wrapper around an `Agent` that reduces boilerplate code and makes it ea
   The stash is supervised in the `Receiver` application supervision tree, not in your own application's. It also
   defines the following client functions in the `Counter` module:
 
-    * `start_stash/0` - Defaults the inital state to an empty list.
-    * `start_stash/1` - Expects a value or anonymous function that will return the initial state.
-    * `start_stash/3` - Expects a module, function name, and list of args that will return the initial state
-    when called.
-    * `stop_stash/2` - Optional `reason` and `timeout` args. See `Agent.stop/3` for more information.
-    * `get_stash/0` - Returns the current state of the stash.
-    * `update_stash/1` - Updates the state of the stash. expects a value or an anonymous function that receives
-    the current state as an argument and returns the updated state.
+  * `start_stash/0` - Defaults the inital state to an empty list.
+  * `start_stash/1` - Expects a value or anonymous function that will return the initial state.
+  * `start_stash/3` - Expects a module, function name, and list of args that will return the initial state
+  when called.
+  * `stop_stash/2` - Optional `reason` and `timeout` args. See `Agent.stop/3` for more information.
+  * `get_stash/0` - Returns the current state of the stash.
+  * `update_stash/1` - Updates the state of the stash. expects a value or an anonymous function that receives
+  the current state as an argument and returns the updated state.
 
   If no `:as` option were given in this example then the process would take the name `Counter.Receiver`, and the
   functions would be named like `start_receiver/0`.

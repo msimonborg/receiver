@@ -1,6 +1,6 @@
 defmodule Receiver do
   @moduledoc """
-  Conveniences for creating simple processes that hold state.
+  Conveniences for creating processes that hold state.
 
   A simple wrapper around an `Agent` that reduces boilerplate code and makes it easy to store
   state in a separate supervised process.
