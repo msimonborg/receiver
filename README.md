@@ -1,11 +1,8 @@
 # Receiver
 
-**TODO: Add description**
+Conveniences for creating simple processes that hold state.
 
 ## Installation
-
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `receiver` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
@@ -14,8 +11,5 @@ def deps do
   ]
 end
 ```
-
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at [https://hexdocs.pm/receiver](https://hexdocs.pm/receiver).
+[Documentation](https://hexdocs.pm/receiver).
 
