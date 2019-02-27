@@ -1,6 +1,5 @@
-defmodule ExUnit.Receiver.Example.CounterTest do
+defmodule ExUnit.CounterTest do
   use ExUnit.Case
-  alias Receiver.Example.Counter
 
   setup do
     start_supervised({Counter, 0})

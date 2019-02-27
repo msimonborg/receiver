@@ -1,4 +1,4 @@
-defmodule Receiver.Example.Counter do
+defmodule Counter do
   @moduledoc false
   use GenServer
   use Receiver, as: :stash
@@ -15,6 +15,10 @@ defmodule Receiver.Example.Counter do
 
   def get do
     GenServer.call(@name, :get)
+  end
+
+  def start do
+    DynamicSupervisor.start_child(CounterSupervisor, {@name, 0})
   end
 
   def init(arg) do
