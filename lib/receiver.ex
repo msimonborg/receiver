@@ -6,6 +6,7 @@ defmodule Receiver do
   defmacro __using__(opts) do
     {name, opts} = Keyword.pop(opts, :as, :receiver)
     {test, _} = Keyword.pop(opts, :test, false)
+
     module_name =
       __CALLER__.module
       |> Module.split()
@@ -63,8 +64,12 @@ defmodule Receiver do
         Agent.get(@receiver_module_name, & &1)
       end
 
-      def unquote(:"update_#{name}")(fun) do
+      def unquote(:"update_#{name}")(fun) when is_function(fun) do
         Agent.update(@receiver_module_name, fun)
+      end
+
+      def unquote(:"update_#{name}")(value) do
+        Agent.update(@receiver_module_name, fn _ -> value end)
       end
     end
   end
