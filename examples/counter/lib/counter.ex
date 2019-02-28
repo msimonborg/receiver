@@ -22,7 +22,7 @@ defmodule Counter do
   end
 
   def init(arg) do
-    start_stash(arg)
+    start_stash(fn -> arg end)
     {:ok, get_stash()}
   end
 
@@ -35,6 +35,6 @@ defmodule Counter do
   end
 
   def terminate(_reason, state) do
-    update_stash(state)
+    update_stash(fn _ -> state end)
   end
 end

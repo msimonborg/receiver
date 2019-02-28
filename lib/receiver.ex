@@ -38,7 +38,7 @@ defmodule Receiver do
         # started its state will not change. The state of the stash is returned as the
         # initial counter state whenever the counter is started.
         def init(arg) do
-          start_stash(arg)
+          start_stash(fn -> arg end)
           {:ok, get_stash()}
         end
 
@@ -54,7 +54,7 @@ defmodule Receiver do
         # This state will be stored for use as the initial state of the counter when
         # it restarts.
         def terminate(_reason, state) do
-          update_stash(state)
+          update_stash(fn _ -> state end)
         end
       end
 
@@ -77,7 +77,7 @@ defmodule Receiver do
   The `Counter` can now be supervised and its state will be isolated from failure and persisted across restarts.
 
       # Start the counter under a supervisor
-      {:ok, _pid} = Supervisor.start_link([{Counter, 0}], strategy: :one_for_one)
+      {:ok, _pid} = Supervisor.start_link([{Counter, }], strategy: :one_for_one)
 
       # Get the state of the counter
       Counter.get()
@@ -108,37 +108,101 @@ defmodule Receiver do
       #=> 2
   """
 
+  @type receiver :: :receiver | atom
+  @type state :: term
+  @type old_state :: state
+  @type reason :: term
+  @type mod :: term
+  @type on_start :: DynamicSupervisor.on_start_child()
+  @type args :: [term]
+  @type on_get :: {:reply, any} | :noreply
+
+  @callback handle_start(receiver, pid, state) :: term
+
+  @callback handle_stop(receiver, reason, state) :: term
+
+  @callback handle_get(receiver, state) :: on_get
+
+  @callback handle_update(receiver, old_state, state) :: term
+
+  defp receiver_module_name(receiver, namespace) when is_atom(receiver) do
+    namespace
+    |> Module.split()
+    |> Enum.concat([Atom.to_string(receiver) |> Macro.camelize()])
+    |> Module.concat()
+  end
+
+  @spec start(module, receiver, fun) :: on_start
+  def start(module, receiver \\ :receiver, fun) when is_function(fun) do
+    do_start(module, receiver, fun)
+  end
+
+  @spec start(module, receiver, mod, fun, args) :: on_start
+  def start(module, receiver \\ :receiver, mod, fun, args) do
+    do_start(module, receiver, [mod, fun, args])
+  end
+
+  defp do_start(module, receiver, arg) do
+    child = {receiver_module_name(receiver, module), arg}
+    case DynamicSupervisor.start_child(Receiver.Supervisor, child) do
+      {:ok, pid} ->
+        apply(module, :handle_start, [receiver, pid, get(module, receiver)])
+        {:ok, pid}
+
+      result -> result
+    end
+  end
+
+  @spec get(module, receiver | fun(any)) :: any
+  def get(module, receiver \\ :receiver)
+
+  def get(module, fun) when is_function(fun), do: do_get(module, fun)
+
+  def get(module, receiver), do: do_get(module, receiver, & &1)
+
+  @spec get(module, receiver, fun(any)) :: any
+  def get(module, receiver, fun) when is_function(fun), do: do_get(module, receiver, fun)
+
+  defp do_get(module, receiver \\ :receiver, fun) do
+    state = Agent.get(receiver_module_name(receiver, module), fun)
+    case apply(module, :handle_get, [receiver, state]) do
+      {:reply, result} -> result
+      :noreply -> state
+    end
+  end
+
+  @spec update(module, receiver, fun(any)) :: :ok
+  def update(module, receiver \\ :receiver, fun) do
+    old_state = Agent.get(receiver_module_name(receiver, module), & &1)
+    Agent.update(receiver_module_name(receiver, module), fun)
+    new_state = Agent.get(receiver_module_name(receiver, module), & &1)
+    apply(module, :handle_update, [receiver, old_state, new_state])
+    :ok
+  end
+
+  def stop(module, receiver \\ :receiver, reason \\ :normal, timeout \\ :infinity) do
+    state = Agent.get(receiver_module_name(receiver, module), & &1)
+    res = Agent.stop(receiver_module_name(receiver, module), reason, timeout)
+    apply(module, :handle_stop, [receiver, reason, state])
+    res
+  end
+
   defmacro __using__(opts) do
     {name, opts} = Keyword.pop(opts, :as, :receiver)
     {test, _} = Keyword.pop(opts, :test, false)
 
-    module_name =
-      __CALLER__.module
-      |> Module.split()
-      |> Enum.concat([Atom.to_string(name) |> Macro.camelize()])
-      |> Module.concat()
+    module_name = receiver_module_name(name, __CALLER__.module)
 
     quote bind_quoted: [name: name, module_name: module_name, test: test] do
       import Receiver
 
       @receiver_module_name module_name
 
-      @behaviour module_name
+      @behaviour Receiver
 
       defmodule module_name do
         @moduledoc false
         use Agent, restart: :transient
-
-        @callback unquote(:"start_#{name}")() :: {:ok, pid}
-        @callback unquote(:"start_#{name}")(arg :: term) :: {:ok, pid}
-        @callback unquote(:"start_#{name}")(module, fun, args :: [term]) :: {:ok, pid}
-
-        @callback unquote(:"stop_#{name}")(reason :: term, timeout) :: :ok
-
-        @callback unquote(:"get_#{name}")() :: term
-
-        @callback unquote(:"update_#{name}")(fun) :: :ok
-        @callback unquote(:"update_#{name}")(term) :: :ok
 
         def start_link(arg)
 
@@ -149,44 +213,49 @@ defmodule Receiver do
         def start_link(fun) when is_function(fun) do
           Agent.start_link(fun, name: __MODULE__)
         end
-
-        def start_link(arg) do
-          Agent.start_link(fn -> arg end, name: __MODULE__)
-        end
       end
 
       if test do
-        def unquote(:"start_#{name}")(args \\ []) do
-          start_supervised({@receiver_module_name, args})
+        def unquote(:"start_#{name}")(fun) when is_function(fun) do
+          start_supervised({@receiver_module_name, fun})
         end
 
         def unquote(:"start_#{name}")(module, fun, args) do
           start_supervised({@receiver_module_name, [module, fun, args]})
         end
       else
-        def unquote(:"start_#{name}")(args \\ []) do
-          DynamicSupervisor.start_child(Receiver.Supervisor, {@receiver_module_name, args})
+        def unquote(:"start_#{name}")(fun) when is_function(fun) do
+          Receiver.start(__MODULE__, unquote(name), fun)
         end
+
         def unquote(:"start_#{name}")(module, fun, args) do
-          DynamicSupervisor.start_child(Receiver.Supervisor, {@receiver_module_name, [module, fun, args]})
+          Receiver.start(__MODULE__, unquote(name), module, fun, args)
         end
       end
 
       def unquote(:"stop_#{name}")(reason \\ :normal, timeout \\ :infinity) do
-        Agent.stop(@receiver_module_name, reason, timeout)
+        Receiver.stop(__MODULE__, unquote(name), reason, timeout)
       end
 
       def unquote(:"get_#{name}")() do
-        Agent.get(@receiver_module_name, & &1)
+        Receiver.get(__MODULE__, unquote(name))
       end
 
       def unquote(:"update_#{name}")(fun) when is_function(fun) do
-        Agent.update(@receiver_module_name, fun)
+        Receiver.update(__MODULE__, unquote(name), fun)
       end
 
       def unquote(:"update_#{name}")(value) do
-        Agent.update(@receiver_module_name, fn _ -> value end)
+        Receiver.update(__MODULE__, unquote(name), fn _ -> value end)
       end
+
+      def handle_stop(unquote(name), reason, state), do: :ok
+
+      def handle_start(unquote(name), pid, state), do: :ok
+
+      def handle_get(unquote(name), state), do: :noreply
+
+      def handle_update(unquote(name), old_state, new_state), do: :ok
     end
   end
 end

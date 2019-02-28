@@ -49,15 +49,6 @@ defmodule ExUnit.ReceiverTest do
     update_receiver(&(&1 + num))
   end
 
-  describe "initializes with a value" do
-    setup do
-      start_receiver(0)
-      :ok
-    end
-
-    run_tests()
-  end
-
   describe "initializes with a function" do
     setup do
       start_receiver(fn -> 0 end)
