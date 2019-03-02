@@ -108,40 +108,41 @@ defmodule Receiver do
       #=> 2
   """
 
+  @typedoc "The receiver name"
   @type receiver :: :receiver | atom
-  @type state :: term
-  @type old_state :: state
-  @type reason :: term
-  @type mod :: term
+
+  @typedoc "Return values of `start` functions"
   @type on_start :: DynamicSupervisor.on_start_child()
+
+  @typedoc "A list of function arguments"
   @type args :: [term]
-  @type on_get :: {:reply, any} | :noreply
 
-  @callback handle_start(receiver, pid, state) :: term
+  @callback handle_start(receiver, pid, state :: term) :: term
 
-  @callback handle_stop(receiver, reason, state) :: term
+  @callback handle_stop(receiver, reason :: term, state :: term) :: term
 
-  @callback handle_get(receiver, state) :: on_get
+  @callback handle_get(receiver, state :: term) :: {:reply, any} | :noreply
 
-  @callback handle_update(receiver, old_state, state) :: term
+  @callback handle_update(receiver, old_state :: term, state :: term) :: term
 
-  defp registered_name(module, receiver) do
-    {:via, Registry, {Receiver.Registry, [module, receiver]}}
-  end
+  @optional_callbacks handle_start: 3,
+                      handle_stop: 3,
+                      handle_get: 2,
+                      handle_update: 3
 
   @spec start(module, receiver, fun) :: on_start
   def start(module, receiver \\ :receiver, fun) when is_function(fun) do
     do_start(module, receiver, [fun])
   end
 
-  @spec start(module, receiver, mod, fun, args) :: on_start
-  def start(module, receiver \\ :receiver, mod, fun, args) when is_atom(fun) do
+  @spec start(module, receiver, module, atom, args) :: on_start
+  def start(module, receiver \\ :receiver, mod, fun, args) when is_atom(mod) and is_atom(fun) and is_list(args) do
     do_start(module, receiver, [mod, fun, args])
   end
 
-  defp do_start(module, receiver, arg) do
-    child = {Receiver.Server, arg ++ [name: registered_name(module, receiver)]}
-    case DynamicSupervisor.start_child(Receiver.Supervisor, child) do
+  defp do_start(module, receiver, args) do
+    child = {Receiver.Server, args ++ [name: registered_name(module, receiver)]}
+    case DynamicSupervisor.start_child(Receiver.Sup, child) do
       {:ok, pid} ->
         apply(module, :handle_start, [receiver, pid, get(module, receiver)])
         {:ok, pid}
@@ -178,6 +179,7 @@ defmodule Receiver do
     apply(module, :handle_update, [receiver, old_state, new_state])
   end
 
+  @spec stop(module, receiver, reason :: term, timeout) :: :ok
   def stop(module, receiver \\ :receiver, reason \\ :normal, timeout \\ :infinity) do
     state = Agent.get(registered_name(module, receiver), & &1)
     res = Agent.stop(registered_name(module, receiver), reason, timeout)
@@ -185,26 +187,26 @@ defmodule Receiver do
     res
   end
 
+  defp registered_name(module, receiver) do
+    {:via, Registry, {Receiver.Registry, [module, receiver]}}
+  end
+
   defmacro __using__(opts) do
     {name, opts} = Keyword.pop(opts, :as, :receiver)
     {test, _} = Keyword.pop(opts, :test, false)
 
-    registered_name = registered_name(__CALLER__.module, name)
+    registered_name = Macro.escape(registered_name(__CALLER__.module, name))
 
-    quote bind_quoted: [name: name, registered_name: Macro.escape(registered_name), test: test] do
-      @registered_name registered_name
-
+    quote location: :keep, bind_quoted: [name: name, test: test, registered_name: registered_name] do
       @behaviour Receiver
 
       if test do
         defp unquote(:"start_#{name}")(fun) when is_function(fun) do
-          name = {:via, Registry, {Receiver.Registry, [__MODULE__, unquote(name)]}}
-          start_supervised({Receiver.Server, [fun, name: name]})
+          start_supervised({Receiver.Server, [fun, name: unquote(Macro.escape(registered_name))]})
         end
 
         defp unquote(:"start_#{name}")(module, fun, args) do
-          name = {:via, Registry, {Receiver.Registry, [__MODULE__, unquote(name)]}}
-          start_supervised({Receiver.Server, [module, fun, args, name: name]})
+          start_supervised({Receiver.Server, [module, fun, args, name: unquote(Macro.escape(registered_name))]})
         end
       else
         defp unquote(:"start_#{name}")(fun) when is_function(fun) do

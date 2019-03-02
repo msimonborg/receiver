@@ -5,11 +5,11 @@ defmodule Receiver.Application do
 
   def start(_type, _args) do
     children = [
-      {DynamicSupervisor, strategy: :one_for_one, name: Receiver.Supervisor},
+      {DynamicSupervisor, strategy: :one_for_one, name: Receiver.Sup},
       {Registry, keys: :unique, name: Receiver.Registry}
     ]
 
-    opts = [strategy: :one_for_one, name: Receiver]
+    opts = [strategy: :one_for_one, name: Receiver.App]
     Supervisor.start_link(children, opts)
   end
 end
