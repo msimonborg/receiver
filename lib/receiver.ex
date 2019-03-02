@@ -192,8 +192,6 @@ defmodule Receiver do
     registered_name = registered_name(__CALLER__.module, name)
 
     quote bind_quoted: [name: name, registered_name: Macro.escape(registered_name), test: test] do
-      import Receiver
-
       @registered_name registered_name
 
       @behaviour Receiver
