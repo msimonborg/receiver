@@ -1,5 +1,5 @@
 defmodule Receiver do
-  @moduledoc """
+  @moduledoc ~S"""
   Conveniences for creating processes that hold state.
 
   A simple wrapper around an `Agent` that reduces boilerplate code and makes it easy to store
@@ -70,6 +70,9 @@ defmodule Receiver do
     * `get_stash/0` - Returns the current state of the stash.
     * `update_stash/1` - Updates the state of the stash. Expects an anonymous function that receives
     the current state as an argument and returns the updated state.
+    * `get_and_update_stash/1` - Gets and updates the stash. Expects an anonymous function that receives the
+    current state as an argument and returns a two element tuple, the first element being the value to
+    return, the second element is the updated state.
 
   If no `:as` option were given in this example then the default function names are used:
 
@@ -79,6 +82,7 @@ defmodule Receiver do
     * `stop_receiver/2`
     * `get_receiver/0`
     * `update_receiver/1`
+    * `get_and_update_receiver/1`
 
   See more detail on the generated functions in the [client functions](#client-functions) section below.
 
@@ -136,16 +140,14 @@ defmodule Receiver do
         Receiver.update(__MODULE__, :stash, fun)
       end
 
+      defp get_and_update_stash(fun) when is_function(fun) do
+        Receiver.get_and_update(__MODULE__, :stash, fun)
+      end
+
   These are private so the stash cannot easily be started, stopped, or updated from outside the counter process.
   A receiver can always be manipulated by calling the `Receiver` functions directly
   i.e. `Receiver.update(Counter, :stash, & &1 + 1)`, but in many cases these functions should be used with
   caution to avoid race conditions.
-
-  ## A note on callbacks
-
-  The first argument to all of the callbacks is the name of the receiver. This will either be the atom passed to
-  the `:as` option or the default name `:receiver`. The intent is to avoid any naming collisions with other `handle_*`
-  callbacks. All of the callbacks are invoked within the calling process, not the receiver process.
 
   ## <a name="testing"></a>Usage in testing
 
@@ -155,40 +157,37 @@ defmodule Receiver do
       defmodule Worker do
         def perform_complex_work(val, fun) do
           val
-          |> do_some_calculation()
+          |> do_some_work()
           |> fun.()
-          |> do_other_calculation()
+          |> do_other_work()
         end
 
-        def do_some_calculation(val) do
-          # perform work
-        end
+        def do_some_work(val), do: :math.log(val)
 
-        def do_other_calculation(val) do
-          # perform other work
-        end
+        def do_other_work(val), do: :math.exp(val) |> :math.floor()
       end
 
-      defmodule ExUnit.WorkerTest do
+      defmodule ExUnit.HigherOrderTest do
         use ExUnit.Case
         use Receiver, test: true
 
         setup do
-          start_receiver()
+          start_receiver(fn -> nil end)
+          :ok
         end
 
         def register(x) do
-          update_receiver(fn _ -> x end)
+          get_and_update_receiver(fn _ -> {x, x} end)
         end
 
         test "it does the work in stages with help from an anonymous function" do
-          assert get_receiver() == 0
+          assert get_receiver() == nil
 
-          result = Worker.perform_complex_work(100, fn x -> register(x) end)
+          result = Worker.perform_complex_work(1.0, fn x -> register(x) end)
           receiver = get_receiver()
 
-          assert Worker.do_some_calculation(100) == receiver
-          assert Worker.do_other_calculation(receiver) == result
+          assert Worker.do_some_work(1.0) == receiver
+          assert Worker.do_other_work(receiver) == result
         end
       end
 
@@ -197,6 +196,12 @@ defmodule Receiver do
   receiver as a supervised process under the test supervisor, automatically starting and shutting it down
   between tests to clean up state. This can help you test that your higher order functions are executing with
   the correct arguments and returning the expected results.
+
+  ## A note on callbacks
+
+  The first argument to all of the callbacks is the name of the receiver. This will either be the atom passed to
+  the `:as` option or the default name `:receiver`. The intent is to avoid any naming collisions with other `handle_*`
+  callbacks. All of the callbacks are invoked within the calling process, not the receiver process.
   """
 
   @typedoc "The receiver name"
@@ -209,7 +214,7 @@ defmodule Receiver do
   @type args :: [term]
 
   @doc """
-  Invoked in the calling process after the receiver is started. `start/3` or `start/5` will block until it returns.
+  Invoked in the calling process after the receiver is started. `start/3` and `start/5` will block until it returns.
 
   `pid` is the PID of the receiver process, `state` is the starting state of the receiver after the initializing
   function is called.
@@ -220,16 +225,41 @@ defmodule Receiver do
   """
   @callback handle_start(receiver, pid, state :: term) :: term
 
+  @doc """
+  Invoked in the calling process after the receiver is stopped. `stop/4` will block until it returns.
+
+  `reason` is the exit reason, `state` is the receiver state at the time of shutdown. See `Agent.stop/3`
+  for more information.
+
+  The return value is ignored.
+  """
   @callback handle_stop(receiver, reason :: term, state :: term) :: term
 
-  @callback handle_get(receiver, state :: term) :: {:reply, any} | :noreply
+  @doc """
+  Invoked in the calling process after a `get` request is sent to the receiver. `get/2` and `get/3`
+  will block until it returns.
+
+  `state` is the return value of the function passed to `get/2` or `get/3` and invoked in the receiver.
+  With basic `get` functions this will be the current state of the receiver.
+
+  Returning `{:reply, reply}` causes `reply` to be the return value of `get/2` and `get/3`
+  (and the private `get_receiver` client functions).
+
+  If `:noreply` is the return value then `state` will be the return value of `get/2` and `get/3`.
+  This can be useful if action needs to be performed with the `state` value but there's no desire
+  to return the results of those actions to the caller.
+  """
+  @callback handle_get(receiver, state :: term) :: {:reply, reply :: term} | :noreply
 
   @callback handle_update(receiver, old_state :: term, state :: term) :: term
+
+  @callback handle_get_and_update(receiver, return_val :: term, state :: term) :: term
 
   @optional_callbacks handle_start: 3,
                       handle_stop: 3,
                       handle_get: 2,
-                      handle_update: 3
+                      handle_update: 3,
+                      handle_get_and_update: 3
 
   @spec start(module, receiver, fun) :: on_start
   def start(module, receiver \\ :receiver, fun) when is_function(fun) do
@@ -278,6 +308,16 @@ defmodule Receiver do
     end)
 
     apply(module, :handle_update, [receiver, old_state, new_state])
+  end
+
+  @spec get_and_update(module, receiver, fun(any)) :: term
+  def get_and_update(module, receiver \\ :receiver, fun) do
+    {return_val, new_state} = Agent.get_and_update(registered_name(module, receiver), fn old ->
+      {return, new} = fun.(old)
+      {{return, new}, new}
+    end)
+
+    apply(module, :handle_get_and_update, [receiver, return_val, new_state])
   end
 
   @spec stop(module, receiver, reason :: term, timeout) :: :ok
@@ -339,6 +379,10 @@ defmodule Receiver do
         Receiver.update(__MODULE__, unquote(name), fun)
       end
 
+      defp unquote(:"get_and_update_#{name}")(fun) when is_function(fun) do
+        Receiver.get_and_update(__MODULE__, unquote(name), fun)
+      end
+
       def handle_stop(unquote(name), reason, state), do: :ok
 
       def handle_start(unquote(name), pid, state), do: :ok
@@ -346,6 +390,8 @@ defmodule Receiver do
       def handle_get(unquote(name), state), do: :noreply
 
       def handle_update(unquote(name), old_state, new_state), do: :ok
+
+      def handle_get_and_update(unquote(name), return_val, new_state), do: return_val
     end
   end
 end
