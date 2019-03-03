@@ -68,6 +68,8 @@ defmodule Receiver do
     when called.
     * `stop_stash/2` - Optional `reason` and `timeout` args. See `Agent.stop/3` for more information.
     * `get_stash/0` - Returns the current state of the stash.
+    * `get_stash/1` - Expects an anonymous function that accepts a single argument. The state of the stash
+    is passed to the anonymous function, and the result of the function is returned.
     * `update_stash/1` - Updates the state of the stash. Expects an anonymous function that receives
     the current state as an argument and returns the updated state.
     * `get_and_update_stash/1` - Gets and updates the stash. Expects an anonymous function that receives the
@@ -81,6 +83,7 @@ defmodule Receiver do
     * `start_receiver/3`
     * `stop_receiver/2`
     * `get_receiver/0`
+    * `get_receiver/1`
     * `update_receiver/1`
     * `get_and_update_receiver/1`
 
@@ -343,7 +346,7 @@ defmodule Receiver do
 
       if test do
         defp unquote(:"start_#{name}")() do
-          start_supervised({Receiver.Server, [fn -> [] end, unquote(Macro.escape(registered_name))]})
+          start_supervised({Receiver.Server, [fn -> [] end, name: unquote(Macro.escape(registered_name))]})
         end
 
         defp unquote(:"start_#{name}")(fun) when is_function(fun) do
@@ -367,6 +370,8 @@ defmodule Receiver do
         end
       end
 
+      defoverridable "start_#{name}": 0, "start_#{name}": 1, "start_#{name}": 3
+
       defp unquote(:"stop_#{name}")(reason \\ :normal, timeout \\ :infinity) do
         Receiver.stop(__MODULE__, unquote(name), reason, timeout)
       end
@@ -374,6 +379,12 @@ defmodule Receiver do
       defp unquote(:"get_#{name}")() do
         Receiver.get(__MODULE__, unquote(name))
       end
+
+      defp unquote(:"get_#{name}")(fun) do
+        Receiver.get(__MODULE__, unquote(name), fun)
+      end
+
+      defoverridable "get_#{name}": 0, "get_#{name}": 1
 
       defp unquote(:"update_#{name}")(fun) when is_function(fun) do
         Receiver.update(__MODULE__, unquote(name), fun)
@@ -383,15 +394,26 @@ defmodule Receiver do
         Receiver.get_and_update(__MODULE__, unquote(name), fun)
       end
 
+      @doc false
       def handle_stop(unquote(name), reason, state), do: :ok
 
+      @doc false
       def handle_start(unquote(name), pid, state), do: :ok
 
+      @doc false
       def handle_get(unquote(name), state), do: :noreply
 
+      @doc false
       def handle_update(unquote(name), old_state, new_state), do: :ok
 
+      @doc false
       def handle_get_and_update(unquote(name), return_val, new_state), do: return_val
+
+      defoverridable handle_stop: 3,
+                     handle_start: 3,
+                     handle_get: 2,
+                     handle_update: 3,
+                     handle_get_and_update: 3
     end
   end
 end
