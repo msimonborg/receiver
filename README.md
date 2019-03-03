@@ -25,7 +25,7 @@ state in a separate supervised process.
   * Testing higher order functions. By passing a function call to a `Receiver` process into a higher
   order function you can test if the function is executed as intended by checking the change in state.
 
-  [See documentation](https://hexdocs.pm/receiver/Receiver.html) for other usage and complete API reference.
+### [See documentation](https://hexdocs.pm/receiver/Receiver.html) for other usage and complete API reference.
 
 ## Example
 
