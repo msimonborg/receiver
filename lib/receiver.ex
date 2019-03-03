@@ -404,6 +404,8 @@ defmodule Receiver do
       defoverridable "start_#{name}": 0,
                      "start_#{name}": 1,
                      "start_#{name}": 3,
+                     "stop_#{name}": 0,
+                     "stop_#{name}": 1,
                      "stop_#{name}": 2,
                      "get_#{name}": 0,
                      "get_#{name}": 1,
