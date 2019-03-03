@@ -270,18 +270,21 @@ defmodule Receiver do
   end
 
   @spec start(module, receiver, module, atom, args) :: on_start
-  def start(module, receiver \\ :receiver, mod, fun, args) when is_atom(mod) and is_atom(fun) and is_list(args) do
+  def start(module, receiver \\ :receiver, mod, fun, args)
+      when is_atom(mod) and is_atom(fun) and is_list(args) do
     do_start(module, receiver, [mod, fun, args])
   end
 
   defp do_start(module, receiver, args) do
     child = {Receiver.Server, args ++ [name: registered_name(module, receiver)]}
+
     case DynamicSupervisor.start_child(Receiver.Sup, child) do
       {:ok, pid} ->
         apply(module, :handle_start, [receiver, pid, get(module, receiver)])
         {:ok, pid}
 
-      result -> result
+      result ->
+        result
     end
   end
 
@@ -297,6 +300,7 @@ defmodule Receiver do
 
   defp do_get(module, receiver \\ :receiver, fun) do
     state = Agent.get(registered_name(module, receiver), fun)
+
     case apply(module, :handle_get, [receiver, state]) do
       {:reply, result} -> result
       :noreply -> state
@@ -305,20 +309,22 @@ defmodule Receiver do
 
   @spec update(module, receiver, fun(any)) :: :ok
   def update(module, receiver \\ :receiver, fun) do
-    {old_state, new_state} = Agent.get_and_update(registered_name(module, receiver), fn old ->
-      new = fun.(old)
-      {{old, new}, new}
-    end)
+    {old_state, new_state} =
+      Agent.get_and_update(registered_name(module, receiver), fn old ->
+        new = fun.(old)
+        {{old, new}, new}
+      end)
 
     apply(module, :handle_update, [receiver, old_state, new_state])
   end
 
   @spec get_and_update(module, receiver, fun(any)) :: term
   def get_and_update(module, receiver \\ :receiver, fun) do
-    {return_val, new_state} = Agent.get_and_update(registered_name(module, receiver), fn old ->
-      {return, new} = fun.(old)
-      {{return, new}, new}
-    end)
+    {return_val, new_state} =
+      Agent.get_and_update(registered_name(module, receiver), fn old ->
+        {return, new} = fun.(old)
+        {{return, new}, new}
+      end)
 
     apply(module, :handle_get_and_update, [receiver, return_val, new_state])
   end
@@ -341,12 +347,15 @@ defmodule Receiver do
 
     registered_name = Macro.escape(registered_name(__CALLER__.module, name))
 
-    quote location: :keep, bind_quoted: [name: name, test: test, registered_name: registered_name] do
+    quote location: :keep,
+          bind_quoted: [name: name, test: test, registered_name: registered_name] do
       @behaviour Receiver
 
       if test do
         defp unquote(:"start_#{name}")() do
-          start_supervised({Receiver.Server, [fn -> [] end, name: unquote(Macro.escape(registered_name))]})
+          start_supervised(
+            {Receiver.Server, [fn -> [] end, name: unquote(Macro.escape(registered_name))]}
+          )
         end
 
         defp unquote(:"start_#{name}")(fun) when is_function(fun) do
@@ -354,7 +363,9 @@ defmodule Receiver do
         end
 
         defp unquote(:"start_#{name}")(module, fun, args) do
-          start_supervised({Receiver.Server, [module, fun, args, name: unquote(Macro.escape(registered_name))]})
+          start_supervised(
+            {Receiver.Server, [module, fun, args, name: unquote(Macro.escape(registered_name))]}
+          )
         end
       else
         defp unquote(:"start_#{name}")() do
@@ -370,8 +381,6 @@ defmodule Receiver do
         end
       end
 
-      defoverridable "start_#{name}": 0, "start_#{name}": 1, "start_#{name}": 3
-
       defp unquote(:"stop_#{name}")(reason \\ :normal, timeout \\ :infinity) do
         Receiver.stop(__MODULE__, unquote(name), reason, timeout)
       end
@@ -384,8 +393,6 @@ defmodule Receiver do
         Receiver.get(__MODULE__, unquote(name), fun)
       end
 
-      defoverridable "get_#{name}": 0, "get_#{name}": 1
-
       defp unquote(:"update_#{name}")(fun) when is_function(fun) do
         Receiver.update(__MODULE__, unquote(name), fun)
       end
@@ -393,6 +400,15 @@ defmodule Receiver do
       defp unquote(:"get_and_update_#{name}")(fun) when is_function(fun) do
         Receiver.get_and_update(__MODULE__, unquote(name), fun)
       end
+
+      defoverridable "start_#{name}": 0,
+                     "start_#{name}": 1,
+                     "start_#{name}": 3,
+                     "stop_#{name}": 2,
+                     "get_#{name}": 0,
+                     "get_#{name}": 1,
+                     "update_#{name}": 1,
+                     "get_and_update_#{name}": 1
 
       @doc false
       def handle_stop(unquote(name), reason, state), do: :ok
