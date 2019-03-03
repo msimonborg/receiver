@@ -97,4 +97,4 @@ Counter.get()
 Clone this repository and run the tests with `mix test` to make sure they pass. Make your changes, writing tests for all new functionality. Changes will not be merged without accompanying tests. Run `mix test` again to make sure all tests are passing, and run `mix format` to format the code, too. Now you're ready to submit a [pull request](https://help.github.com/en/articles/about-pull-requests)
 
 # License
-MIT
+[MIT - Copyright (c) 2019 M. Simon Borg](LICENSE.txt)
