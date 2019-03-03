@@ -114,7 +114,7 @@ defmodule Receiver do
       Counter.get()
       #=> 2
 
-  ## <a name="client-functions"></a>Client Functions
+  ## <a name="client-functions"></a>Client functions
 
   When we `use Receiver, as: :stash` above, the following private function definitions
   are automatically generated inside the `Counter` module:
