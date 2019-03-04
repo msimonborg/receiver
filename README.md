@@ -55,7 +55,7 @@ defmodule Counter do
   # started its state will not change. The state of the stash is returned as the
   # initial counter state whenever the counter is started.
   def init(arg) do
-    start_stash(arg)
+    start_stash(fn -> arg end)
     {:ok, get_stash()}
   end
 
@@ -71,7 +71,7 @@ defmodule Counter do
   # This state will be stored for use as the initial state of the counter when
   # it restarts.
   def terminate(_reason, state) do
-    update_stash(state)
+    update_stash(fn _ -> state end)
   end
 end
 ```
