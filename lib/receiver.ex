@@ -332,7 +332,7 @@ defmodule Receiver do
   end
 
   @spec get(module, receiver | (state -> term)) :: term
-  def get(module, receiver \\ :receiver)
+  def get(module, receiver_or_fun \\ :receiver)
 
   def get(module, fun) when is_function(fun, 1), do: do_get(module, :receiver, fun)
 
