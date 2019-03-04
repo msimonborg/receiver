@@ -296,9 +296,9 @@ defmodule Receiver do
   """
   @callback handle_get(receiver, state :: term) :: {:reply, reply :: term} | :noreply
 
-  @callback handle_update(receiver, old_state :: term, state :: term) :: term
+  @callback handle_update(receiver, old_state :: term, state) :: term
 
-  @callback handle_get_and_update(receiver, return_val :: term, state :: term) :: term
+  @callback handle_get_and_update(receiver, return_val :: term, state) :: {:reply, reply :: term} | :noreply
 
   @optional_callbacks handle_start: 3,
                       handle_stop: 3,
