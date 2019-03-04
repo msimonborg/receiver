@@ -9,14 +9,16 @@ defmodule Receiver do
 
     * Creating a "stash" to persist process state across restarts. See [example](#stash) below.
 
-    * Storing persistent process state outside of the worker process, or as a shared repository
-    for multiple processes.
+    * Application or server configuration. See [example](#config) below.
+
+    * Storing mutable state outside of a worker process, or as a shared repository
+    for multiple processes running the same module code.
 
     * Testing higher order functions. By passing a function call to a `Receiver` process into a higher
     order function you can test if the function is executed as intended by checking the change in state.
     See [example](#testing) below.
 
-  ## <a name="stash"></a>Example
+  ## <a name="stash"></a>Using as a stash
 
       defmodule Counter do
         use GenServer
@@ -151,6 +153,33 @@ defmodule Receiver do
   A receiver can always be manipulated by calling the `Receiver` functions directly
   i.e. `Receiver.update(Counter, :stash, & &1 + 1)`, but in many cases these functions should be used with
   caution to avoid race conditions.
+
+  ## <a name="config"></a>Using as a configuration store
+
+      defmodule MyApp do
+        @doc false
+        use Application
+        use Receiver, as: :config
+
+        def start(_app, _type) do
+          start_config(fn ->
+            Application.get_env(:my_app, :configuration, [setup: :default])
+            |> Enum.into(%{})
+          end)
+
+          Supervisor.start_link([MyApp.Worker], strategy: :one_for_one, name: MyApp)
+        end
+
+        def config, do: get_config()
+      end
+
+  Now the configuration can be globally read with the public `config/0`.
+
+      MyApp.config()
+      #=> %{setup: :default}
+
+      MyApp.config.setup
+      #=> :default
 
   ## <a name="testing"></a>Usage in testing
 
