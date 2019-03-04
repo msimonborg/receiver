@@ -17,7 +17,9 @@ state in a separate supervised process.
 
 # Use cases
 
-  * Creating a "stash" to persist process state across restarts. See [example](#example) below.
+  * Creating a "stash" to persist process state across restarts. See [example](#stash) below.
+
+  * Application or server configuration. See [example](#config) below.
 
   * Storing persistent process state outside of the worker process, or as a shared repository
   for multiple processes.
@@ -27,7 +29,9 @@ state in a separate supervised process.
 
 ### [See documentation](https://hexdocs.pm/receiver/Receiver.html) for other usage and complete API reference.
 
-## Example
+# Examples
+
+## Stash
 
 ```elixir
 defmodule Counter do
@@ -93,6 +97,33 @@ Counter.get()
 #=> 2
 ```
 
+## Config
+```elixir
+defmodule MyApp do
+  @doc false
+  use Application
+  use Receiver, as: :config
+
+  def start(_app, _type) do
+    start_config(fn ->
+      Application.get_env(:my_app, :configuration, [setup: :default])
+      |> Enum.into(%{})
+    end)
+
+    Supervisor.start_link([MyApp.Worker], strategy: :one_for_one, name: MyApp)
+  end
+
+  def config, do: get_config()
+end
+```
+Now the configuration can be globally read with the public `config/0`.
+```elixir
+MyApp.config()
+#=> %{setup: :default}
+
+MyApp.config.setup
+#=> :default
+```
 # Contributing
 Clone this repository and run the tests with `mix test` to make sure they pass. Make your changes, writing tests for all new functionality. Changes will not be merged without accompanying tests. Run `mix test` again to make sure all tests are passing, and run `mix format` to format the code, too. Now you're ready to submit a [pull request](https://help.github.com/en/articles/about-pull-requests)
 
