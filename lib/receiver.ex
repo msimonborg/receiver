@@ -255,6 +255,9 @@ defmodule Receiver do
   @typedoc "A list of function arguments"
   @type args :: [term]
 
+  @typedoc "The receiver state"
+  @type state :: term
+
   @doc """
   Invoked in the calling process after the receiver is started. `start/3` and `start/5` will block until it returns.
 
@@ -303,8 +306,8 @@ defmodule Receiver do
                       handle_update: 3,
                       handle_get_and_update: 3
 
-  @spec start(module, receiver, fun) :: on_start
-  def start(module, receiver \\ :receiver, fun) when is_function(fun) do
+  @spec start(module, receiver, (() -> term)) :: on_start
+  def start(module, receiver \\ :receiver, fun) when is_function(fun, 0) do
     do_start(module, receiver, [fun])
   end
 
@@ -314,6 +317,7 @@ defmodule Receiver do
     do_start(module, receiver, [mod, fun, args])
   end
 
+  @spec do_start(module, receiver, args) :: on_start
   defp do_start(module, receiver, args) do
     child = {Receiver.Server, args ++ [name: registered_name(module, receiver)]}
 
@@ -327,27 +331,27 @@ defmodule Receiver do
     end
   end
 
-  @spec get(module, receiver | fun(any)) :: any
+  @spec get(module, receiver | (state -> term)) :: term
   def get(module, receiver \\ :receiver)
 
-  def get(module, fun) when is_function(fun), do: do_get(module, fun)
+  def get(module, fun) when is_function(fun, 1), do: do_get(module, :receiver, fun)
 
   def get(module, receiver), do: do_get(module, receiver, & &1)
 
-  @spec get(module, receiver, fun(any)) :: any
-  def get(module, receiver, fun) when is_function(fun), do: do_get(module, receiver, fun)
+  @spec get(module, receiver, (state -> term)) :: term
+  def get(module, receiver, fun) when is_function(fun, 1), do: do_get(module, receiver, fun)
 
-  defp do_get(module, receiver \\ :receiver, fun) do
+  defp do_get(module, receiver, fun) do
     state = Agent.get(registered_name(module, receiver), fun)
 
     case apply(module, :handle_get, [receiver, state]) do
-      {:reply, result} -> result
+      {:reply, reply} -> reply
       :noreply -> state
     end
   end
 
-  @spec update(module, receiver, fun(any)) :: :ok
-  def update(module, receiver \\ :receiver, fun) do
+  @spec update(module, receiver, (state -> state)) :: :ok
+  def update(module, receiver \\ :receiver, fun) when is_function(fun, 1) do
     {old_state, new_state} =
       Agent.get_and_update(registered_name(module, receiver), fn old ->
         new = fun.(old)
@@ -355,25 +359,30 @@ defmodule Receiver do
       end)
 
     apply(module, :handle_update, [receiver, old_state, new_state])
+    :ok
   end
 
-  @spec get_and_update(module, receiver, fun(any)) :: term
-  def get_and_update(module, receiver \\ :receiver, fun) do
+  @spec get_and_update(module, receiver, (state -> {term, state})) :: term
+  def get_and_update(module, receiver \\ :receiver, fun) when is_function(fun, 1) do
     {return_val, new_state} =
       Agent.get_and_update(registered_name(module, receiver), fn old ->
         {return, new} = fun.(old)
         {{return, new}, new}
       end)
 
-    apply(module, :handle_get_and_update, [receiver, return_val, new_state])
+    case apply(module, :handle_get_and_update, [receiver, return_val, new_state]) do
+      {:reply, reply} -> reply
+      :noreply -> return_val
+    end
   end
 
   @spec stop(module, receiver, reason :: term, timeout) :: :ok
   def stop(module, receiver \\ :receiver, reason \\ :normal, timeout \\ :infinity) do
     state = Agent.get(registered_name(module, receiver), & &1)
-    res = Agent.stop(registered_name(module, receiver), reason, timeout)
-    apply(module, :handle_stop, [receiver, reason, state])
-    res
+    with :ok <- Agent.stop(registered_name(module, receiver), reason, timeout) do
+      apply(module, :handle_stop, [receiver, reason, state])
+      :ok
+    end
   end
 
   defp registered_name(module, receiver) do
@@ -464,7 +473,7 @@ defmodule Receiver do
       def handle_update(unquote(name), old_state, new_state), do: :ok
 
       @doc false
-      def handle_get_and_update(unquote(name), return_val, new_state), do: return_val
+      def handle_get_and_update(unquote(name), return_val, new_state), do: :noreply
 
       defoverridable handle_stop: 3,
                      handle_start: 3,
