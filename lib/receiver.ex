@@ -156,6 +156,11 @@ defmodule Receiver do
 
   ## <a name="config"></a>Using as a configuration store
 
+  A `Receiver` can be used to store application configuration, and even be initialized
+  at startup. Since the receiver processes are supervised in a separate application
+  that is a dependency of yours, it will already be ready to start even before your
+  application's `start/2` callback has returned:
+
       defmodule MyApp do
         @doc false
         use Application
@@ -167,13 +172,18 @@ defmodule Receiver do
             |> Enum.into(%{})
           end)
 
-          Supervisor.start_link([MyApp.Worker], strategy: :one_for_one, name: MyApp)
+          children = [
+            MyApp.Worker,
+            MyApp.Task
+          ]
+
+          Supervisor.start_link(children, strategy: :one_for_one, name: MyApp)
         end
 
         def config, do: get_config()
       end
 
-  Now the configuration can be globally read with the public `config/0`.
+  Now the configuration can be globally read with the public `MyApp.config/0`.
 
       MyApp.config()
       #=> %{setup: :default}
@@ -183,7 +193,7 @@ defmodule Receiver do
 
   ## <a name="testing"></a>Usage in testing
 
-  A receiver can be used to test higher order functions by using it in an ExUnit test case and passing
+  A `Receiver` can also be used to test higher order functions by using it in an ExUnit test case and passing
   the `test: true` option. Consider the following example:
 
       defmodule Worker do

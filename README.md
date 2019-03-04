@@ -98,6 +98,11 @@ Counter.get()
 ```
 
 ## Config
+A `Receiver` can be used to store application configuration, and even be initialized
+at startup. Since the receiver processes are supervised in a separate application
+that is a dependency of yours, it will already be ready to start even before your
+application's `start/2` callback has returned:
+
 ```elixir
 defmodule MyApp do
   @doc false
@@ -110,13 +115,19 @@ defmodule MyApp do
       |> Enum.into(%{})
     end)
 
-    Supervisor.start_link([MyApp.Worker], strategy: :one_for_one, name: MyApp)
+    children = [
+      MyApp.Worker,
+      MyApp.Task
+    ]
+
+    Supervisor.start_link(children, strategy: :one_for_one, name: MyApp)
   end
 
   def config, do: get_config()
 end
 ```
-Now the configuration can be globally read with the public `config/0`.
+Now the configuration can be globally read with the public `MyApp.config/0`.
+
 ```elixir
 MyApp.config()
 #=> %{setup: :default}
@@ -124,6 +135,7 @@ MyApp.config()
 MyApp.config.setup
 #=> :default
 ```
+
 # Contributing
 Clone this repository and run the tests with `mix test` to make sure they pass. Make your changes, writing tests for all new functionality. Changes will not be merged without accompanying tests. Run `mix test` again to make sure all tests are passing, and run `mix format` to format the code, too. Now you're ready to submit a [pull request](https://help.github.com/en/articles/about-pull-requests)
 
