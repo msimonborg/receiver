@@ -480,13 +480,13 @@ defmodule Receiver do
 
   @spec initialization_func(on_start_attrs) :: (() -> state)
   defp initialization_func(attrs) do
+    # If an atom is provided as the `:name` option at `start*` it overrides the `:via` naming pattern,
+    # skipping registration with the `Registry`. In this case the process needs to be manually registered
+    # on initialization so the PID is associated with the receiver name and registered process name.
+    # If the process has already been registered with the `:via` pattern then `Registry.register/3` returns
+    # `{:error, {:already_registered, pid}}` and is effectively a noop. We do this from within the
+    # initialization function because the calling process will be the one registered. See `Registry.register/3`.
     fn ->
-      # If an atom is provided as the `:name` option at `start*` it overrides the `:via` naming pattern,
-      # skipping registration with the `Registry`. In this case the process needs to be manually registered
-      # on initialization so the PID is associated with the receiver name and registered process name.
-      # If the process has already been registered with the `:via` pattern then `Registry.register/3` returns
-      # `{:error, {:already_registered, pid}}` and is effectively a noop. We do this from within the
-      # initialization function because the calling process will be the one registered. See `Registry.register/3`.
       Registry.register(Receiver.Registry, {attrs.module, attrs.receiver}, attrs.name)
       attrs.initial_state
     end
