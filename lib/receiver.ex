@@ -245,18 +245,34 @@ defmodule Receiver do
   the `:as` option or the default name `:receiver`. The intent is to avoid any naming collisions with other `handle_*`
   callbacks. All of the callbacks are invoked within the calling process, not the receiver process.
   """
+  use Agent, restart: :transient
 
   @typedoc "The receiver name"
-  @type receiver :: :receiver | atom
+  @type receiver :: :receiver | atom | {module, atom}
+
+  @typedoc "Return values of `start_supervised/3` and `start_supervised/5`"
+  @type on_start_supervised :: DynamicSupervisor.on_start_child
 
   @typedoc "Return values of `start/3` and `start/5`"
-  @type on_start :: DynamicSupervisor.on_start_child()
+  @type on_start :: Agent.on_start
 
   @typedoc "A list of function arguments"
   @type args :: [term]
 
+  @typedoc "A list of arguments accepted by `start*` functions"
+  @type start_args :: [module | fun] | [module | fun | options] | [module | atom | args] | [module | atom | args | options]
+
+  @typedoc "Option values used by the `start*` functions"
+  @type option :: {:as, atom} | {:name, atom}
+
+  @typedoc "Options used by the `start*` functions"
+  @type options :: [option]
+
   @typedoc "The receiver state"
   @type state :: term
+
+  @typedoc "The registered name of a receiver"
+  @type registered_name :: {:via, Registry, {Receiver.Registry, {module, receiver}}}
 
   @doc """
   Invoked in the calling process after the receiver is started. `start/3` and `start/5` will block until it returns.
@@ -306,43 +322,158 @@ defmodule Receiver do
                       handle_update: 3,
                       handle_get_and_update: 3
 
-  @spec start(module, receiver, (() -> term)) :: on_start
-  def start(module, receiver \\ :receiver, fun) when is_function(fun, 0) do
-    do_start(module, receiver, [fun])
+  @doc """
+  Starts a new receiver without links (outside of a supervision tree).
+
+  See `start_link/3` for more information.
+
+  ## Examples
+
+      {:ok, _} = Receiver.start(Example, fn -> %{} end)
+      Receiver.get({Example, :receiver})
+      #=> %{}
+
+      {:ok, _} = Receiver.start(Example, fn -> %{} end, name: Example.Map)
+      Receiver.get(Example.Map)
+      #=> %{}
+
+  """
+  @spec start(module, (() -> term), options) :: on_start
+  def start(module, fun, opts \\ []) when is_atom(module) and is_function(fun, 0) and is_list(opts) do
+    do_start(module, [fun], opts)
   end
 
-  @spec start(module, receiver, module, atom, args) :: on_start
-  def start(module, receiver \\ :receiver, mod, fun, args)
-      when is_atom(mod) and is_atom(fun) and is_list(args) do
-    do_start(module, receiver, [mod, fun, args])
+  @spec start(module, module, atom, args, options) :: on_start
+  def start(module, mod, fun, args, opts \\ [])
+      when is_atom(module) and is_atom(mod) and is_atom(fun) and is_list(args) and is_list(opts) do
+    do_start(module, [mod, fun, args], opts)
   end
 
-  @spec do_start(module, receiver, args) :: on_start
-  defp do_start(module, receiver, args) do
-    child = {Receiver.Server, args ++ [name: registered_name(module, receiver)]}
+  @spec do_start(module, args, options) :: on_start
+  defp do_start(module, args, opts) do
+    attrs = get_start_attrs(module, args, opts)
 
-    case DynamicSupervisor.start_child(Receiver.Sup, child) do
-      {:ok, pid} ->
-        apply(module, :handle_start, [receiver, pid, get(module, receiver)])
-        {:ok, pid}
-
-      result ->
-        result
+    with {:ok, pid} <- Agent.start(initialization_func(attrs), name: attrs.name) do
+      invoke_handle_start_callback(module, attrs.receiver, pid, attrs.initial_state)
     end
   end
 
-  @spec get(module, receiver | (state -> term)) :: term
-  def get(module, receiver_or_fun \\ :receiver)
+  @doc """
+  Starts a `Receiver` process linked to the current process.
 
-  def get(module, fun) when is_function(fun, 1), do: do_get(module, :receiver, fun)
+  This is the function used to start a receiver as part of a supervision tree. It accepts a list
+  containing from two to five arguments.
 
-  def get(module, receiver), do: do_get(module, receiver, & &1)
+  Usually this should be used to build a child spec in your supervision tree.
 
-  @spec get(module, receiver, (state -> term)) :: term
-  def get(module, receiver, fun) when is_function(fun, 1), do: do_get(module, receiver, fun)
+  ## Examples
 
-  defp do_get(module, receiver, fun) do
-    state = Agent.get(registered_name(module, receiver), fun)
+      children = [
+        {Receiver, [One, fn -> 1 end]},
+        {Receiver, [Two, fn -> 2 end, [name: Two]]},
+        {Receiver, [Three, Kernel, :+, [2, 1]]},
+        {Receiver, [Four, Kernerl, :+, [2, 2], [name: Four]]}
+      ]
+
+      Supervisor.start_link(children, strategy: one_for_one)
+
+  Only use this is if you really need to supervise your own receiver. In most cases you should
+  use the `start_supervised*` functions to start a supervised receiver dynamically in an isolated
+  application. See `start_supervised/3` and `start_supervised/5` for more information.
+  """
+  @spec start_link(start_args) :: on_start
+  def start_link([module, fun]), do: start_link(module, fun)
+
+  def start_link([module, fun, opts]), do: start_link(module, fun, opts)
+
+  def start_link([module, mod, fun, args]), do: start_link(module, mod, fun, args)
+
+  def start_link([module, mod, fun, args, opts]), do: start_link(module, mod, fun, args, opts)
+
+  @spec start_link(module, (() -> term), options) :: on_start
+  def start_link(module, fun, opts \\ []) when is_atom(module) and is_function(fun, 0) and is_list(opts) do
+    do_start_link(module, [fun], opts)
+  end
+
+  @spec start_link(module, module, atom, args, options) :: on_start
+  def start_link(module, mod, fun, args, opts \\ [])
+      when is_atom(module) and is_atom(mod) and is_atom(fun) and is_list(args) and is_list(opts) do
+    do_start_link(module, [mod, fun, args], opts)
+  end
+
+  @spec do_start_link(module, args, options) :: on_start
+  defp do_start_link(module, args, opts) do
+    attrs = get_start_attrs(module, args, opts)
+
+    with {:ok, pid} <- Agent.start_link(initialization_func(attrs), name: attrs.name) do
+      invoke_handle_start_callback(module, attrs.receiver, pid, attrs.initial_state)
+    end
+  end
+
+  @spec start_supervised(module, (() -> term), options) :: on_start_supervised
+  def start_supervised(module, fun, opts \\ []) when is_atom(module) and is_function(fun, 0) and is_list(opts) do
+    do_start_supervised(module, [fun], opts)
+  end
+
+  @spec start_supervised(module, module, atom, args, options) :: on_start_supervised
+  def start_supervised(module, mod, fun, args, opts \\ [])
+      when is_atom(module) and is_atom(mod) and is_atom(fun) and is_list(args) and is_list(opts) do
+    do_start_supervised(module, [mod, fun, args], opts)
+  end
+
+  @spec do_start_supervised(module, args, options) :: on_start_supervised
+  defp do_start_supervised(module, args, opts) do
+    attrs = get_start_attrs(module, args, opts)
+
+    child = {Receiver.Server, [initialization_func(attrs), name: attrs.name]}
+
+    with {:ok, pid} <- DynamicSupervisor.start_child(Receiver.Sup, child) do
+      invoke_handle_start_callback(module, attrs.receiver, pid, attrs.initial_state)
+    end
+  end
+
+  @spec invoke_handle_start_callback(module, receiver, pid, term) :: {:ok, pid}
+  defp invoke_handle_start_callback(module, receiver, pid, initial_state) do
+    apply(module, :handle_start, [receiver, pid, initial_state])
+    {:ok, pid}
+  rescue
+    e in UndefinedFunctionError ->
+      stop(module, receiver)
+      raise e
+  end
+
+  @spec get_start_attrs(module, args, options) :: %{module: module, receiver: atom, name: atom | registered_name, initial_state: term}
+  defp get_start_attrs(module, args, opts) do
+    task = apply(Task.Supervisor, :async, [Receiver.TaskSup | args])
+    receiver = Keyword.get(opts, :as, :receiver)
+
+    %{
+      module: module,
+      receiver: Keyword.get(opts, :as, :receiver),
+      name: Keyword.get(opts, :name, registered_name(module, receiver)),
+      initial_state: Task.await(task)
+    }
+  end
+
+  @spec initialization_func(%{module: module, receiver: receiver, name: atom | registered_name, initial_state: term}) :: (() -> state)
+  defp initialization_func(attrs) do
+    fn ->
+      Registry.register(Receiver.Registry, {attrs.module, attrs.receiver}, attrs.name)
+      attrs.initial_state
+    end
+  end
+
+  @spec get(receiver) :: term
+  def get(name), do: do_get(name, & &1)
+
+
+  @spec get(receiver, (state -> term)) :: term
+  def get(name, fun) when is_function(fun, 1), do: do_get(name, fun)
+
+  defp do_get(name, fun) when is_atom(name), do: which_receiver(name) |> do_get(fun)
+
+  defp do_get({module, receiver} = name, fun) do
+    state = Agent.get(whereis(name), fun)
 
     case apply(module, :handle_get, [receiver, state]) do
       {:reply, reply} -> reply
@@ -350,10 +481,14 @@ defmodule Receiver do
     end
   end
 
-  @spec update(module, receiver, (state -> state)) :: :ok
-  def update(module, receiver \\ :receiver, fun) when is_function(fun, 1) do
+  @spec update(receiver, (state -> state)) :: :ok
+  def update(name, fun) when is_function(fun, 1), do: do_update(name, fun)
+
+  defp do_update(name, fun) when is_atom(name), do: which_receiver(name) |> do_update(fun)
+
+  defp do_update({module, receiver} = name, fun) do
     {old_state, new_state} =
-      Agent.get_and_update(registered_name(module, receiver), fn old ->
+      Agent.get_and_update(whereis(name), fn old ->
         new = fun.(old)
         {{old, new}, new}
       end)
@@ -362,10 +497,14 @@ defmodule Receiver do
     :ok
   end
 
-  @spec get_and_update(module, receiver, (state -> {term, state})) :: term
-  def get_and_update(module, receiver \\ :receiver, fun) when is_function(fun, 1) do
+  @spec get_and_update(receiver, (state -> {term, state})) :: term
+  def get_and_update(name, fun) when is_function(fun, 1), do: do_get_and_update(name, fun)
+
+  defp do_get_and_update(name, fun) when is_atom(name), do: which_receiver(name) |> do_get_and_update(fun)
+
+  defp do_get_and_update({module, receiver} = name, fun) do
     {return_val, new_state} =
-      Agent.get_and_update(registered_name(module, receiver), fn old ->
+      Agent.get_and_update(whereis(name), fn old ->
         {return, new} = fun.(old)
         {{return, new}, new}
       end)
@@ -376,104 +515,160 @@ defmodule Receiver do
     end
   end
 
-  @spec stop(module, receiver, reason :: term, timeout) :: :ok
-  def stop(module, receiver \\ :receiver, reason \\ :normal, timeout \\ :infinity) do
-    state = Agent.get(registered_name(module, receiver), & &1)
-    with :ok <- Agent.stop(registered_name(module, receiver), reason, timeout) do
+  @spec stop(receiver, reason :: term, timeout) :: :ok
+  def stop(name, reason \\ :normal, timeout \\ :infinity), do: do_stop(name, reason, timeout)
+
+  defp do_stop(name, reason, timeout) when is_atom(name), do: which_receiver(name) |> do_stop(reason, timeout)
+
+  defp do_stop({module, receiver} = name, reason, timeout) do
+    state = Agent.get(whereis(name), & &1)
+    with :ok <- Agent.stop(whereis(name), reason, timeout) do
       apply(module, :handle_stop, [receiver, reason, state])
       :ok
     end
   end
 
+  @doc """
+  Returns the PID of a receiver process, or `nil` if it does not exist.
+
+  Accepts one argument, either a two-element tuple containing the name of the
+  callback module and an atom that is the name of the receiver, or a PID.
+  """
+  @spec whereis(pid | {module, receiver}) :: pid | nil
+  def whereis({mod, receiver} = name) when is_atom(mod) and is_atom(receiver) do
+    case Registry.lookup(Receiver.Registry, name) do
+      [{pid, _}] -> pid
+      _ -> nil
+    end
+  end
+
+  def whereis(pid) when is_pid(pid), do: pid
+
+  def whereis(name) when is_atom(name), do: Process.whereis(name)
+
+  @doc """
+  Returns a two element tuple containing the callback module and name of the receiver associated
+  with a PID or a registered process name.
+
+  Accepts one argument, a PID or a `name`. `name` must be an atom that can be used to
+  register a process with `Process.register/2`.
+  """
+  @spec which_receiver(pid | atom) :: receiver | nil
+  def which_receiver(pid) when is_pid(pid) do
+    case Registry.keys(Receiver.Registry, pid) do
+      [{_, _} = name] -> name
+      [] -> nil
+    end
+  end
+
+  def which_receiver(name) when is_atom(name) do
+    with pid when is_pid(pid) <- Process.whereis(name), do: which_receiver(pid)
+  end
+
+  @doc """
+  Returns the `name` of a registered process associated with a receiver. `name` must be an atom that
+  can be used to register a process with `Process.register/2`.
+
+  Accepts one argument, a PID or a two element tuple containing the callback module and the name of the
+  receiver. Returns nil if no name was registered with the process.
+  """
+  @spec which_name(pid | receiver) :: atom | nil
+  def which_name(pid) when is_pid(pid) do
+    with receiver <- which_receiver(pid),
+         [{^pid, name}] <- Registry.lookup(Receiver.Registry, receiver), do: name
+  end
+
+  def which_name({_, _} = receiver) do
+    with [{_, name}] <- Registry.lookup(Receiver.Registry, receiver), do: name
+  end
+
+  @spec registered_name(module, receiver) :: registered_name
   defp registered_name(module, receiver) do
-    {:via, Registry, {Receiver.Registry, [module, receiver]}}
+    {:via, Registry, {Receiver.Registry, {module, receiver}}}
   end
 
   defmacro __using__(opts) do
-    {name, opts} = Keyword.pop(opts, :as, :receiver)
-    {test, _} = Keyword.pop(opts, :test, false)
-
-    registered_name = Macro.escape(registered_name(__CALLER__.module, name))
-
-    quote location: :keep,
-          bind_quoted: [name: name, test: test, registered_name: registered_name] do
+    quote location: :keep, bind_quoted: [opts: opts] do
       @behaviour Receiver
 
+      {test, opts} = Keyword.pop(opts, :test, false)
+      as = Keyword.get(opts, :as, :receiver)
+
       if test do
-        defp unquote(:"start_#{name}")() do
+        defp unquote(:"start_#{as}")() do
           start_supervised(
-            {Receiver.Server, [fn -> [] end, name: unquote(Macro.escape(registered_name))]}
+            {Receiver, [__MODULE__, fn -> [] end, unquote(opts)]}
           )
         end
 
-        defp unquote(:"start_#{name}")(fun) when is_function(fun) do
-          start_supervised({Receiver.Server, [fun, name: unquote(Macro.escape(registered_name))]})
+        defp unquote(:"start_#{as}")(fun) when is_function(fun, 0) do
+          start_supervised({Receiver, [__MODULE__, fun, unquote(opts)]})
         end
 
-        defp unquote(:"start_#{name}")(module, fun, args) do
+        defp unquote(:"start_#{as}")(module, fun, args) do
           start_supervised(
-            {Receiver.Server, [module, fun, args, name: unquote(Macro.escape(registered_name))]}
+            {Receiver, [__MODULE__, module, fun, args, unquote(opts)]}
           )
         end
       else
-        defp unquote(:"start_#{name}")() do
-          Receiver.start(__MODULE__, unquote(name), fn -> [] end)
+        defp unquote(:"start_#{as}")() do
+          Receiver.start_supervised(__MODULE__, fn -> [] end, unquote(opts))
         end
 
-        defp unquote(:"start_#{name}")(fun) when is_function(fun) do
-          Receiver.start(__MODULE__, unquote(name), fun)
+        defp unquote(:"start_#{as}")(fun) when is_function(fun, 0) do
+          Receiver.start_supervised(__MODULE__, fun, unquote(opts))
         end
 
-        defp unquote(:"start_#{name}")(module, fun, args) do
-          Receiver.start(__MODULE__, unquote(name), module, fun, args)
+        defp unquote(:"start_#{as}")(module, fun, args) do
+          Receiver.start_supervised(__MODULE__, module, fun, args, unquote(opts))
         end
       end
 
-      defp unquote(:"stop_#{name}")(reason \\ :normal, timeout \\ :infinity) do
-        Receiver.stop(__MODULE__, unquote(name), reason, timeout)
+      defp unquote(:"stop_#{as}")(reason \\ :normal, timeout \\ :infinity) do
+        Receiver.stop({__MODULE__, unquote(as)}, reason, timeout)
       end
 
-      defp unquote(:"get_#{name}")() do
-        Receiver.get(__MODULE__, unquote(name))
+      defp unquote(:"get_#{as}")() do
+        Receiver.get({__MODULE__, unquote(as)})
       end
 
-      defp unquote(:"get_#{name}")(fun) do
-        Receiver.get(__MODULE__, unquote(name), fun)
+      defp unquote(:"get_#{as}")(fun) do
+        Receiver.get({__MODULE__, unquote(as)}, fun)
       end
 
-      defp unquote(:"update_#{name}")(fun) when is_function(fun) do
-        Receiver.update(__MODULE__, unquote(name), fun)
+      defp unquote(:"update_#{as}")(fun) when is_function(fun) do
+        Receiver.update({__MODULE__, unquote(as)}, fun)
       end
 
-      defp unquote(:"get_and_update_#{name}")(fun) when is_function(fun) do
-        Receiver.get_and_update(__MODULE__, unquote(name), fun)
+      defp unquote(:"get_and_update_#{as}")(fun) when is_function(fun) do
+        Receiver.get_and_update({__MODULE__, unquote(as)}, fun)
       end
 
-      defoverridable "start_#{name}": 0,
-                     "start_#{name}": 1,
-                     "start_#{name}": 3,
-                     "stop_#{name}": 0,
-                     "stop_#{name}": 1,
-                     "stop_#{name}": 2,
-                     "get_#{name}": 0,
-                     "get_#{name}": 1,
-                     "update_#{name}": 1,
-                     "get_and_update_#{name}": 1
+      defoverridable "start_#{as}": 0,
+                     "start_#{as}": 1,
+                     "start_#{as}": 3,
+                     "stop_#{as}": 0,
+                     "stop_#{as}": 1,
+                     "stop_#{as}": 2,
+                     "get_#{as}": 0,
+                     "get_#{as}": 1,
+                     "update_#{as}": 1,
+                     "get_and_update_#{as}": 1
 
       @doc false
-      def handle_stop(unquote(name), reason, state), do: :ok
+      def handle_stop(unquote(as), reason, state), do: :ok
 
       @doc false
-      def handle_start(unquote(name), pid, state), do: :ok
+      def handle_start(unquote(as), pid, state), do: :ok
 
       @doc false
-      def handle_get(unquote(name), state), do: :noreply
+      def handle_get(unquote(as), state), do: :noreply
 
       @doc false
-      def handle_update(unquote(name), old_state, new_state), do: :ok
+      def handle_update(unquote(as), old_state, new_state), do: :ok
 
       @doc false
-      def handle_get_and_update(unquote(name), return_val, new_state), do: :noreply
+      def handle_get_and_update(unquote(as), return_val, new_state), do: :noreply
 
       defoverridable handle_stop: 3,
                      handle_start: 3,
@@ -483,3 +678,8 @@ defmodule Receiver do
     end
   end
 end
+
+
+# {:ok, pid} = Receiver.start(Counter, fn -> 0 end, as: :stash)
+# Receiver.update(pid, fn state -> state + 1 end)
+# Receiver.update({Counter, :stash}, fn state -> state + 1 end)
