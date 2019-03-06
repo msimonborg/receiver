@@ -523,7 +523,6 @@ defmodule Receiver do
     |> do_get_and_update(fun)
   end
 
-
   defp do_get_and_update({module, receiver} = name, fun) do
     {return_val, new_state} =
       Agent.get_and_update(whereis(name), fn old ->
