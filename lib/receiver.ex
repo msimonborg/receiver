@@ -445,7 +445,8 @@ defmodule Receiver do
     |> do_start_with(module, attrs)
   end
 
-  @spec do_start_with(on_start | on_start_supervised, module, on_start_attrs) :: (on_start | on_start_supervised)
+  @spec do_start_with(on_start | on_start_supervised, module, on_start_attrs) ::
+          on_start | on_start_supervised
   defp do_start_with(on_start_result, module, attrs) do
     with {:ok, pid} <- on_start_result do
       invoke_handle_start_callback(module, attrs.receiver, pid, attrs.initial_state)
