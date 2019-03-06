@@ -425,7 +425,7 @@ defmodule Receiver do
   defp do_start_supervised(module, args, opts) do
     attrs = get_start_attrs(module, args, opts)
 
-    child = {Receiver.Server, [initialization_func(attrs), name: attrs.name]}
+    child = {Receiver, [module, initialization_func(attrs), [name: attrs.name]]}
 
     with {:ok, pid} <- DynamicSupervisor.start_child(Receiver.Sup, child) do
       invoke_handle_start_callback(module, attrs.receiver, pid, attrs.initial_state)
