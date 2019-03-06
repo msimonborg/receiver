@@ -438,7 +438,7 @@ defmodule Receiver do
     {:ok, pid}
   rescue
     e in UndefinedFunctionError ->
-      stop(module, receiver)
+      stop({module, receiver})
       raise e
   end
 
