@@ -122,31 +122,35 @@ defmodule Receiver do
   are automatically generated inside the `Counter` module:
 
       defp start_stash do
-        Receiver.start(__MODULE__, :stash, fn -> [] end)
+        Receiver.start_supervised({__MODULE__, :stash}, fn -> [] end)
       end
 
-      defp start_stash(fun) when is_function(fun) do
-        Receiver.start(__MODULE__, :stash, fun)
+      defp start_stash(fun) when is_function(fun, 0) do
+        Receiver.start_supervised({__MODULE__, :stash}, fun)
       end
 
       defp start_stash(module, fun, args) do
-        Receiver.start(__MODULE__, :stash, module, fun, args)
+        Receiver.start_supervised({__MODULE__, :stash}, module, fun, args)
       end
 
       defp stop_stash(reason \\ :normal, timeout \\ :infinity) do
-        Receiver.stop(__MODULE__, :stash, reason, timeout)
+        Receiver.stop({__MODULE__, :stash}, reason, timeout)
       end
 
       defp get_stash do
-        Receiver.get(__MODULE__, :stash)
+        Receiver.get({__MODULE__, :stash})
       end
 
-      defp update_stash(fun) when is_function(fun) do
-        Receiver.update(__MODULE__, :stash, fun)
+      defp get_stash(fun) when is_function(fun, 1) do
+        Receiver.get({__MODULE__, :stash}, fun)
       end
 
-      defp get_and_update_stash(fun) when is_function(fun) do
-        Receiver.get_and_update(__MODULE__, :stash, fun)
+      defp update_stash(fun) when is_function(fun, 1) do
+        Receiver.update({__MODULE__, :stash}, fun)
+      end
+
+      defp get_and_update_stash(fun) when is_function(fun, 1) do
+        Receiver.get_and_update({__MODULE__, :stash}, fun)
       end
 
   These are private so the stash cannot easily be started, stopped, or updated from outside the counter process.
@@ -678,15 +682,15 @@ defmodule Receiver do
         Receiver.get({__MODULE__, unquote(as)})
       end
 
-      defp unquote(:"get_#{as}")(fun) do
+      defp unquote(:"get_#{as}")(fun) when is_function(fun, 1) do
         Receiver.get({__MODULE__, unquote(as)}, fun)
       end
 
-      defp unquote(:"update_#{as}")(fun) when is_function(fun) do
+      defp unquote(:"update_#{as}")(fun) when is_function(fun, 1) do
         Receiver.update({__MODULE__, unquote(as)}, fun)
       end
 
-      defp unquote(:"get_and_update_#{as}")(fun) when is_function(fun) do
+      defp unquote(:"get_and_update_#{as}")(fun) when is_function(fun, 1) do
         Receiver.get_and_update({__MODULE__, unquote(as)}, fun)
       end
 
@@ -724,7 +728,3 @@ defmodule Receiver do
     end
   end
 end
-
-# {:ok, pid} = Receiver.start(Counter, fn -> 0 end, as: :stash)
-# Receiver.update(pid, fn state -> state + 1 end)
-# Receiver.update({Counter, :stash}, fn state -> state + 1 end)
