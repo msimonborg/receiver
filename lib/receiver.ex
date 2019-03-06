@@ -499,7 +499,11 @@ defmodule Receiver do
   @spec get(receiver, (state -> term)) :: term
   def get(name, fun) when is_function(fun, 1), do: do_get(name, fun)
 
-  defp do_get(name, fun) when is_atom(name), do: which_receiver(name) |> do_get(fun)
+  defp do_get(name, fun) when is_atom(name) or is_pid(name) do
+    name
+    |> which_receiver()
+    |> do_get(fun)
+  end
 
   defp do_get({module, receiver} = name, fun) do
     state = Agent.get(whereis(name), fun)
@@ -513,7 +517,13 @@ defmodule Receiver do
   @spec update(receiver, (state -> state)) :: :ok
   def update(name, fun) when is_function(fun, 1), do: do_update(name, fun)
 
-  defp do_update(name, fun) when is_atom(name), do: which_receiver(name) |> do_update(fun)
+  defp do_update(name, fun) when is_atom(name) or is_pid(name) do
+    name
+    |> which_receiver()
+    |> do_update(fun)
+  end
+
+  defp do_update(pid, fun) when is_pid(pid), do: which_receiver(pid) |> do_update(fun)
 
   defp do_update({module, receiver} = name, fun) do
     {old_state, new_state} =
@@ -529,7 +539,7 @@ defmodule Receiver do
   @spec get_and_update(receiver, (state -> {term, state})) :: term
   def get_and_update(name, fun) when is_function(fun, 1), do: do_get_and_update(name, fun)
 
-  defp do_get_and_update(name, fun) when is_atom(name) do
+  defp do_get_and_update(name, fun) when is_atom(name) or is_pid(name) do
     name
     |> which_receiver()
     |> do_get_and_update(fun)
@@ -551,16 +561,17 @@ defmodule Receiver do
   @spec stop(receiver, reason :: term, timeout) :: :ok
   def stop(name, reason \\ :normal, timeout \\ :infinity), do: do_stop(name, reason, timeout)
 
-  defp do_stop(name, reason, timeout) when is_atom(name) do
+  defp do_stop(name, reason, timeout) when is_atom(name) or is_pid(name) do
     name
     |> which_receiver()
     |> do_stop(reason, timeout)
   end
 
   defp do_stop({module, receiver} = name, reason, timeout) do
-    state = Agent.get(whereis(name), & &1)
+    pid = whereis(name)
+    state = Agent.get(pid, & &1)
 
-    with :ok <- Agent.stop(whereis(name), reason, timeout) do
+    with :ok <- Agent.stop(pid, reason, timeout) do
       apply(module, :handle_stop, [receiver, reason, state])
       :ok
     end
@@ -572,7 +583,7 @@ defmodule Receiver do
   Accepts one argument, either a two-element tuple containing the name of the
   callback module and an atom that is the name of the receiver, or a PID.
   """
-  @spec whereis(pid | {module, receiver}) :: pid | nil
+  @spec whereis(pid | {module, receiver} | atom) :: pid | nil
   def whereis({mod, receiver} = name) when is_atom(mod) and is_atom(receiver) do
     case Registry.lookup(Receiver.Registry, name) do
       [{pid, _}] -> pid
