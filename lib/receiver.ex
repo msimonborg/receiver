@@ -278,6 +278,14 @@ defmodule Receiver do
   @typedoc "The registered name of a receiver"
   @type registered_name :: {:via, Registry, {Receiver.Registry, {module, receiver}}}
 
+  @typedoc "The receiver attributes required for successful start and registration"
+  @type on_start_attrs :: %{
+          module: module,
+          receiver: atom,
+          name: atom | registered_name,
+          initial_state: term
+        }
+
   @doc """
   Invoked in the calling process after the receiver is started. `start/3` and `start/5` will block until it returns.
 
@@ -359,9 +367,8 @@ defmodule Receiver do
   defp do_start(module, args, opts) do
     attrs = get_start_attrs(module, args, opts)
 
-    with {:ok, pid} <- Agent.start(initialization_func(attrs), name: attrs.name) do
-      invoke_handle_start_callback(module, attrs.receiver, pid, attrs.initial_state)
-    end
+    Agent.start(initialization_func(attrs), name: attrs.name)
+    |> do_start_with(module, attrs)
   end
 
   @doc """
@@ -412,9 +419,8 @@ defmodule Receiver do
   defp do_start_link(module, args, opts) do
     attrs = get_start_attrs(module, args, opts)
 
-    with {:ok, pid} <- Agent.start_link(initialization_func(attrs), name: attrs.name) do
-      invoke_handle_start_callback(module, attrs.receiver, pid, attrs.initial_state)
-    end
+    Agent.start_link(initialization_func(attrs), name: attrs.name)
+    |> do_start_with(module, attrs)
   end
 
   @spec start_supervised(module, (() -> term), options) :: on_start_supervised
@@ -435,47 +441,52 @@ defmodule Receiver do
 
     child = {Receiver, [module, initialization_func(attrs), [name: attrs.name]]}
 
-    with {:ok, pid} <- DynamicSupervisor.start_child(Receiver.Sup, child) do
+    DynamicSupervisor.start_child(Receiver.Sup, child)
+    |> do_start_with(module, attrs)
+  end
+
+  @spec do_start_with(on_start | on_start_supervised, module, on_start_attrs) :: (on_start | on_start_supervised)
+  defp do_start_with(on_start_result, module, attrs) do
+    with {:ok, pid} <- on_start_result do
       invoke_handle_start_callback(module, attrs.receiver, pid, attrs.initial_state)
+      {:ok, pid}
     end
   end
 
-  @spec invoke_handle_start_callback(module, receiver, pid, term) :: {:ok, pid}
+  @spec invoke_handle_start_callback(module, receiver, pid, term) :: term
   defp invoke_handle_start_callback(module, receiver, pid, initial_state) do
     apply(module, :handle_start, [receiver, pid, initial_state])
-    {:ok, pid}
   rescue
+    # Catch `UndefinedFunctionError` raised from invoking the `handle_start/3` callback on a
+    # module that hasn't defined it. At this point the receiver has already been started and
+    # needs to be stopped gracefully so it isn't orphaned, then raise the exception.
     e in UndefinedFunctionError ->
       stop({module, receiver})
       raise e
   end
 
-  @spec get_start_attrs(module, args, options) :: %{
-          module: module,
-          receiver: atom,
-          name: atom | registered_name,
-          initial_state: term
-        }
+  @spec get_start_attrs(module, args, options) :: on_start_attrs
   defp get_start_attrs(module, args, opts) do
     task = apply(Task.Supervisor, :async, [Receiver.TaskSup | args])
     receiver = Keyword.get(opts, :as, :receiver)
 
     %{
       module: module,
-      receiver: Keyword.get(opts, :as, :receiver),
+      receiver: receiver,
       name: Keyword.get(opts, :name, registered_name(module, receiver)),
       initial_state: Task.await(task)
     }
   end
 
-  @spec initialization_func(%{
-          module: module,
-          receiver: receiver,
-          name: atom | registered_name,
-          initial_state: term
-        }) :: (() -> state)
+  @spec initialization_func(on_start_attrs) :: (() -> state)
   defp initialization_func(attrs) do
     fn ->
+      # If an atom is provided as the `:name` option at `start*` it overrides the `:via` naming pattern,
+      # skipping registration with the `Registry`. In this case the process needs to be manually registered
+      # on initialization so the PID is associated with the receiver name and registered process name.
+      # If the process has already been registered with the `:via` pattern then `Registry.register/3` returns
+      # `{:error, {:already_registered, pid}}` and is effectively a noop. We do this from within the
+      # initialization function because the calling process will be the one registered. See `Registry.register/3`.
       Registry.register(Receiver.Registry, {attrs.module, attrs.receiver}, attrs.name)
       attrs.initial_state
     end
