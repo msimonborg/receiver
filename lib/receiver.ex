@@ -251,16 +251,20 @@ defmodule Receiver do
   @type receiver :: :receiver | atom | {module, atom}
 
   @typedoc "Return values of `start_supervised/3` and `start_supervised/5`"
-  @type on_start_supervised :: DynamicSupervisor.on_start_child
+  @type on_start_supervised :: DynamicSupervisor.on_start_child()
 
   @typedoc "Return values of `start/3` and `start/5`"
-  @type on_start :: Agent.on_start
+  @type on_start :: Agent.on_start()
 
   @typedoc "A list of function arguments"
   @type args :: [term]
 
   @typedoc "A list of arguments accepted by `start*` functions"
-  @type start_args :: [module | fun] | [module | fun | options] | [module | atom | args] | [module | atom | args | options]
+  @type start_args ::
+          [module | fun]
+          | [module | fun | options]
+          | [module | atom | args]
+          | [module | atom | args | options]
 
   @typedoc "Option values used by the `start*` functions"
   @type option :: {:as, atom} | {:name, atom}
@@ -314,7 +318,8 @@ defmodule Receiver do
 
   @callback handle_update(receiver, old_state :: term, state) :: term
 
-  @callback handle_get_and_update(receiver, return_val :: term, state) :: {:reply, reply :: term} | :noreply
+  @callback handle_get_and_update(receiver, return_val :: term, state) ::
+              {:reply, reply :: term} | :noreply
 
   @optional_callbacks handle_start: 3,
                       handle_stop: 3,
@@ -339,7 +344,8 @@ defmodule Receiver do
 
   """
   @spec start(module, (() -> term), options) :: on_start
-  def start(module, fun, opts \\ []) when is_atom(module) and is_function(fun, 0) and is_list(opts) do
+  def start(module, fun, opts \\ [])
+      when is_atom(module) and is_function(fun, 0) and is_list(opts) do
     do_start(module, [fun], opts)
   end
 
@@ -391,7 +397,8 @@ defmodule Receiver do
   def start_link([module, mod, fun, args, opts]), do: start_link(module, mod, fun, args, opts)
 
   @spec start_link(module, (() -> term), options) :: on_start
-  def start_link(module, fun, opts \\ []) when is_atom(module) and is_function(fun, 0) and is_list(opts) do
+  def start_link(module, fun, opts \\ [])
+      when is_atom(module) and is_function(fun, 0) and is_list(opts) do
     do_start_link(module, [fun], opts)
   end
 
@@ -411,7 +418,8 @@ defmodule Receiver do
   end
 
   @spec start_supervised(module, (() -> term), options) :: on_start_supervised
-  def start_supervised(module, fun, opts \\ []) when is_atom(module) and is_function(fun, 0) and is_list(opts) do
+  def start_supervised(module, fun, opts \\ [])
+      when is_atom(module) and is_function(fun, 0) and is_list(opts) do
     do_start_supervised(module, [fun], opts)
   end
 
@@ -442,7 +450,12 @@ defmodule Receiver do
       raise e
   end
 
-  @spec get_start_attrs(module, args, options) :: %{module: module, receiver: atom, name: atom | registered_name, initial_state: term}
+  @spec get_start_attrs(module, args, options) :: %{
+          module: module,
+          receiver: atom,
+          name: atom | registered_name,
+          initial_state: term
+        }
   defp get_start_attrs(module, args, opts) do
     task = apply(Task.Supervisor, :async, [Receiver.TaskSup | args])
     receiver = Keyword.get(opts, :as, :receiver)
@@ -455,7 +468,12 @@ defmodule Receiver do
     }
   end
 
-  @spec initialization_func(%{module: module, receiver: receiver, name: atom | registered_name, initial_state: term}) :: (() -> state)
+  @spec initialization_func(%{
+          module: module,
+          receiver: receiver,
+          name: atom | registered_name,
+          initial_state: term
+        }) :: (() -> state)
   defp initialization_func(attrs) do
     fn ->
       Registry.register(Receiver.Registry, {attrs.module, attrs.receiver}, attrs.name)
@@ -465,7 +483,6 @@ defmodule Receiver do
 
   @spec get(receiver) :: term
   def get(name), do: do_get(name, & &1)
-
 
   @spec get(receiver, (state -> term)) :: term
   def get(name, fun) when is_function(fun, 1), do: do_get(name, fun)
@@ -500,7 +517,12 @@ defmodule Receiver do
   @spec get_and_update(receiver, (state -> {term, state})) :: term
   def get_and_update(name, fun) when is_function(fun, 1), do: do_get_and_update(name, fun)
 
-  defp do_get_and_update(name, fun) when is_atom(name), do: which_receiver(name) |> do_get_and_update(fun)
+  defp do_get_and_update(name, fun) when is_atom(name) do
+    name
+    |> which_receiver()
+    |> do_get_and_update(fun)
+  end
+
 
   defp do_get_and_update({module, receiver} = name, fun) do
     {return_val, new_state} =
@@ -518,10 +540,15 @@ defmodule Receiver do
   @spec stop(receiver, reason :: term, timeout) :: :ok
   def stop(name, reason \\ :normal, timeout \\ :infinity), do: do_stop(name, reason, timeout)
 
-  defp do_stop(name, reason, timeout) when is_atom(name), do: which_receiver(name) |> do_stop(reason, timeout)
+  defp do_stop(name, reason, timeout) when is_atom(name) do
+    name
+    |> which_receiver()
+    |> do_stop(reason, timeout)
+  end
 
   defp do_stop({module, receiver} = name, reason, timeout) do
     state = Agent.get(whereis(name), & &1)
+
     with :ok <- Agent.stop(whereis(name), reason, timeout) do
       apply(module, :handle_stop, [receiver, reason, state])
       :ok
@@ -575,7 +602,8 @@ defmodule Receiver do
   @spec which_name(pid | receiver) :: atom | nil
   def which_name(pid) when is_pid(pid) do
     with receiver <- which_receiver(pid),
-         [{^pid, name}] <- Registry.lookup(Receiver.Registry, receiver), do: name
+         [{^pid, name}] <- Registry.lookup(Receiver.Registry, receiver),
+         do: name
   end
 
   def which_name({_, _} = receiver) do
@@ -596,9 +624,7 @@ defmodule Receiver do
 
       if test do
         defp unquote(:"start_#{as}")() do
-          start_supervised(
-            {Receiver, [__MODULE__, fn -> [] end, unquote(opts)]}
-          )
+          start_supervised({Receiver, [__MODULE__, fn -> [] end, unquote(opts)]})
         end
 
         defp unquote(:"start_#{as}")(fun) when is_function(fun, 0) do
@@ -606,9 +632,7 @@ defmodule Receiver do
         end
 
         defp unquote(:"start_#{as}")(module, fun, args) do
-          start_supervised(
-            {Receiver, [__MODULE__, module, fun, args, unquote(opts)]}
-          )
+          start_supervised({Receiver, [__MODULE__, module, fun, args, unquote(opts)]})
         end
       else
         defp unquote(:"start_#{as}")() do
@@ -678,7 +702,6 @@ defmodule Receiver do
     end
   end
 end
-
 
 # {:ok, pid} = Receiver.start(Counter, fn -> 0 end, as: :stash)
 # Receiver.update(pid, fn state -> state + 1 end)
