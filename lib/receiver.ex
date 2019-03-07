@@ -252,7 +252,7 @@ defmodule Receiver do
   use Agent, restart: :transient
 
   @typedoc "The receiver name"
-  @type receiver :: :receiver | atom | {module, atom}
+  @type receiver :: atom | {module, atom} | pid
 
   @typedoc "Return values of `start_supervised/3` and `start_supervised/5`"
   @type on_start_supervised :: DynamicSupervisor.on_start_child()
@@ -280,10 +280,10 @@ defmodule Receiver do
   @type state :: term
 
   @typedoc "The registered name of a receiver"
-  @type registered_name :: {:via, Registry, {Receiver.Registry, {module, receiver}}}
+  @type registered_name :: {:via, Registry, {Receiver.Registry, {module, atom}}}
 
   @typedoc "The receiver attributes required for successful start and registration"
-  @type on_start_attrs :: %{
+  @type start_attrs :: %{
           module: module,
           receiver: atom,
           name: atom | registered_name,
@@ -300,7 +300,7 @@ defmodule Receiver do
 
   The return value is ignored.
   """
-  @callback handle_start(receiver, pid, state :: term) :: term
+  @callback handle_start(atom, pid, state) :: term
 
   @doc """
   Invoked in the calling process after the receiver is stopped. `stop/4` will block until it returns.
@@ -310,7 +310,7 @@ defmodule Receiver do
 
   The return value is ignored.
   """
-  @callback handle_stop(receiver, reason :: term, state :: term) :: term
+  @callback handle_stop(atom, reason :: term, state) :: term
 
   @doc """
   Invoked in the calling process after a `get` request is sent to the receiver. `get/2` and `get/3`
@@ -326,11 +326,11 @@ defmodule Receiver do
   This can be useful if action needs to be performed with the `state` value but there's no desire
   to return the results of those actions to the caller.
   """
-  @callback handle_get(receiver, state :: term) :: {:reply, reply :: term} | :noreply
+  @callback handle_get(atom, state) :: {:reply, reply :: term} | :noreply
 
-  @callback handle_update(receiver, old_state :: term, state) :: term
+  @callback handle_update(atom, old_state :: state, state) :: term
 
-  @callback handle_get_and_update(receiver, return_val :: term, state) ::
+  @callback handle_get_and_update(atom, return_val :: term, state) ::
               {:reply, reply :: term} | :noreply
 
   @optional_callbacks handle_start: 3,
@@ -372,7 +372,7 @@ defmodule Receiver do
     attrs = get_start_attrs(module, args, opts)
 
     Agent.start(initialization_func(attrs), name: attrs.name)
-    |> do_start_with(module, attrs)
+    |> invoke_handle_start_callback(module, attrs)
   end
 
   @doc """
@@ -424,7 +424,7 @@ defmodule Receiver do
     attrs = get_start_attrs(module, args, opts)
 
     Agent.start_link(initialization_func(attrs), name: attrs.name)
-    |> do_start_with(module, attrs)
+    |> invoke_handle_start_callback(module, attrs)
   end
 
   @spec start_supervised(module, (() -> term), options) :: on_start_supervised
@@ -442,35 +442,29 @@ defmodule Receiver do
   @spec do_start_supervised(module, args, options) :: on_start_supervised
   defp do_start_supervised(module, args, opts) do
     attrs = get_start_attrs(module, args, opts)
-
     child = {Receiver, [module, initialization_func(attrs), [name: attrs.name]]}
 
     DynamicSupervisor.start_child(Receiver.Sup, child)
-    |> do_start_with(module, attrs)
+    |> invoke_handle_start_callback(module, attrs)
   end
 
-  @spec do_start_with(on_start | on_start_supervised, module, on_start_attrs) ::
+  @spec invoke_handle_start_callback(on_start | on_start_supervised, module, start_attrs) ::
           on_start | on_start_supervised
-  defp do_start_with(on_start_result, module, attrs) do
+  defp invoke_handle_start_callback(on_start_result, module, attrs) do
     with {:ok, pid} <- on_start_result do
-      invoke_handle_start_callback(module, attrs.receiver, pid, attrs.initial_state)
+      apply(module, :handle_start, [attrs.receiver, pid, attrs.initial_state])
       {:ok, pid}
     end
-  end
-
-  @spec invoke_handle_start_callback(module, receiver, pid, term) :: term
-  defp invoke_handle_start_callback(module, receiver, pid, initial_state) do
-    apply(module, :handle_start, [receiver, pid, initial_state])
   rescue
     # Catch `UndefinedFunctionError` raised from invoking the `handle_start/3` callback on a
     # module that hasn't defined it. At this point the receiver has already been started and
     # needs to be stopped gracefully so it isn't orphaned, then raise the exception.
     e in UndefinedFunctionError ->
-      stop({module, receiver})
+      stop({module, attrs.receiver})
       raise e
   end
 
-  @spec get_start_attrs(module, args, options) :: on_start_attrs
+  @spec get_start_attrs(module, args, options) :: start_attrs
   defp get_start_attrs(module, args, opts) do
     task = apply(Task.Supervisor, :async, [Receiver.TaskSup | args])
     receiver = Keyword.get(opts, :as, :receiver)
@@ -483,7 +477,7 @@ defmodule Receiver do
     }
   end
 
-  @spec initialization_func(on_start_attrs) :: (() -> state)
+  @spec initialization_func(start_attrs) :: (() -> state)
   defp initialization_func(attrs) do
     # If an atom is provided as the `:name` option at `start*` it overrides the `:via` naming pattern,
     # skipping registration with the `Registry`. In this case the process needs to be manually registered
@@ -503,9 +497,9 @@ defmodule Receiver do
   @spec get(receiver, (state -> term)) :: term
   def get(name, fun) when is_function(fun, 1), do: do_get(name, fun)
 
-  defp do_get(name, fun) when is_atom(name) or is_pid(name) do
+  defp do_get(name, fun) when (not is_nil(name) and is_atom(name)) or is_pid(name) do
     name
-    |> which_receiver()
+    |> validate_name()
     |> do_get(fun)
   end
 
@@ -521,13 +515,11 @@ defmodule Receiver do
   @spec update(receiver, (state -> state)) :: :ok
   def update(name, fun) when is_function(fun, 1), do: do_update(name, fun)
 
-  defp do_update(name, fun) when is_atom(name) or is_pid(name) do
+  defp do_update(name, fun) when (not is_nil(name) and is_atom(name)) or is_pid(name) do
     name
-    |> which_receiver()
+    |> validate_name()
     |> do_update(fun)
   end
-
-  defp do_update(pid, fun) when is_pid(pid), do: which_receiver(pid) |> do_update(fun)
 
   defp do_update({module, receiver} = name, fun) do
     {old_state, new_state} =
@@ -543,9 +535,9 @@ defmodule Receiver do
   @spec get_and_update(receiver, (state -> {term, state})) :: term
   def get_and_update(name, fun) when is_function(fun, 1), do: do_get_and_update(name, fun)
 
-  defp do_get_and_update(name, fun) when is_atom(name) or is_pid(name) do
+  defp do_get_and_update(name, fun) when (not is_nil(name) and is_atom(name)) or is_pid(name) do
     name
-    |> which_receiver()
+    |> validate_name()
     |> do_get_and_update(fun)
   end
 
@@ -565,9 +557,9 @@ defmodule Receiver do
   @spec stop(receiver, reason :: term, timeout) :: :ok
   def stop(name, reason \\ :normal, timeout \\ :infinity), do: do_stop(name, reason, timeout)
 
-  defp do_stop(name, reason, timeout) when is_atom(name) or is_pid(name) do
+  defp do_stop(name, reason, timeout) when (not is_nil(name) and is_atom(name)) or is_pid(name) do
     name
-    |> which_receiver()
+    |> validate_name()
     |> do_stop(reason, timeout)
   end
 
@@ -581,13 +573,28 @@ defmodule Receiver do
     end
   end
 
+  @spec validate_name(receiver) :: {module, atom}
+  defp validate_name(name) do
+    case which_receiver(name) do
+      {_, _} = receiver ->
+        receiver
+
+      _ ->
+        raise ArgumentError,
+          message:
+            "Expected an atom, pid, or two element tuple associated with a Receiver. Got #{
+              IO.inspect(name)
+            }"
+    end
+  end
+
   @doc """
   Returns the PID of a receiver process, or `nil` if it does not exist.
 
   Accepts one argument, either a two-element tuple containing the name of the
   callback module and an atom that is the name of the receiver, or a PID.
   """
-  @spec whereis(pid | {module, receiver} | atom) :: pid | nil
+  @spec whereis(receiver) :: pid | nil
   def whereis({mod, receiver} = name) when is_atom(mod) and is_atom(receiver) do
     case Registry.lookup(Receiver.Registry, name) do
       [{pid, _}] -> pid
@@ -606,7 +613,7 @@ defmodule Receiver do
   Accepts one argument, a PID or a `name`. `name` must be an atom that can be used to
   register a process with `Process.register/2`.
   """
-  @spec which_receiver(pid | atom) :: receiver | nil
+  @spec which_receiver(receiver) :: {module, atom} | nil
   def which_receiver(pid) when is_pid(pid) do
     case Registry.keys(Receiver.Registry, pid) do
       [{_, _} = name] -> name
