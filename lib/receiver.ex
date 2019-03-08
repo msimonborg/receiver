@@ -399,13 +399,9 @@ defmodule Receiver do
   application. See `start_supervised/3` and `start_supervised/5` for more information.
   """
   @spec start_link(start_args) :: on_start
-  def start_link([module, fun]), do: start_link(module, fun)
-
-  def start_link([module, fun, opts]), do: start_link(module, fun, opts)
-
-  def start_link([module, mod, fun, args]), do: start_link(module, mod, fun, args)
-
-  def start_link([module, mod, fun, args, opts]), do: start_link(module, mod, fun, args, opts)
+  def start_link(list_of_args) when is_list(list_of_args) do
+    apply(__MODULE__, :start_link, list_of_args)
+  end
 
   @spec start_link(module, (() -> term), options) :: on_start
   def start_link(module, fun, opts \\ [])
