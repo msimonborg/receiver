@@ -46,7 +46,8 @@ defmodule Receiver.MixProject do
   defp deps do
     [
       {:ex_doc, "~> 0.19.3", only: [:dev, :test]},
-      {:excoveralls, "~> 0.10", only: :test}
+      {:excoveralls, "~> 0.10", only: :test},
+      {:stream_data, "~> 0.1", only: :test}
     ]
   end
 end

@@ -437,11 +437,9 @@ defmodule Receiver do
 
   @spec do_start_supervised(module, args, options) :: on_start_supervised
   defp do_start_supervised(module, args, opts) do
-    attrs = get_start_attrs(module, args, opts)
-    child = {Receiver, [module, initialization_func(attrs), [name: attrs.name]]}
+    child = {Receiver, [module | args] ++ [opts]}
 
     DynamicSupervisor.start_child(Receiver.Sup, child)
-    |> invoke_handle_start_callback(module, attrs)
   end
 
   @spec invoke_handle_start_callback(on_start | on_start_supervised, module, start_attrs) ::
