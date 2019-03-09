@@ -35,4 +35,36 @@ defmodule ExUnit.StartLinkTest do
       :ok = Agent.stop(pid)
     end
   end
+
+  describe "start_link/3" do
+    test "accepts a callback module and funtion" do
+      {:ok, pid} = Receiver.start_link(One, fn -> %{} end)
+      assert self() in (Process.info(pid) |> Keyword.get(:links)) == true
+      assert Receiver.get({One, :receiver}) == %{}
+      :ok = Agent.stop(pid)
+    end
+
+    test "accepts a callback module, function, and options" do
+      {:ok, pid} = Receiver.start_link(Two, fn -> %{} end, as: :backup)
+      assert self() in (Process.info(pid) |> Keyword.get(:links)) == true
+      assert Receiver.get({Two, :backup}) == %{}
+      :ok = Agent.stop(pid)
+    end
+  end
+
+  describe "start_link/5" do
+    test "accepts a callback module and mfa" do
+      {:ok, pid} = Receiver.start_link(One, Four, :initial_state, [:box])
+      assert self() in (Process.info(pid) |> Keyword.get(:links)) == true
+      assert Agent.get(pid, fn %{locked: [h | t]} -> {h, t} end) == {:box, []}
+      :ok = Agent.stop(pid)
+    end
+
+    test "accepts a callback module, mfa, and opts" do
+      {:ok, pid} = Receiver.start_link(Three, Four, :initial_state, [:box], name: LockBox)
+      assert self() in (Process.info(pid) |> Keyword.get(:links)) == true
+      assert Receiver.whereis(LockBox) == pid
+      :ok = Agent.stop(pid)
+    end
+  end
 end
