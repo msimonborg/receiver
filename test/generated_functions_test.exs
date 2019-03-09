@@ -11,13 +11,14 @@ defmodule ExUnit.GeneratedFunctionsTest.Runner do
       end
 
       test "it can get and update the state of the receiver" do
-        assert get_and_update_tester(& {&1, &1 + 1}) == 0
+        assert get_and_update_tester(&{&1, &1 + 1}) == 0
         assert get_tester() == 1
       end
 
-      test "it can stop the receiver" do
+      test "it can stop the receiver", %{pid: pid} do
+        assert Process.alive?(pid) == true
         assert :ok = stop_tester()
-        catch_exit get_tester()
+        assert Process.alive?(pid) == false
       end
     end
   end
@@ -30,8 +31,8 @@ defmodule ExUnit.GeneratedFunctionsTest do
 
   describe "initialized with a function" do
     setup do
-      start_tester(fn -> 0 end)
-      :ok
+      {:ok, pid} = start_tester(fn -> 0 end)
+      %{pid: pid}
     end
 
     run_tests()
@@ -39,8 +40,8 @@ defmodule ExUnit.GeneratedFunctionsTest do
 
   describe "initialized with a module, function, and arguments" do
     setup do
-      start_tester(Kernel, :-, [1, 1])
-      :ok
+      {:ok, pid} = start_tester(Kernel, :-, [1, 1])
+      %{pid: pid}
     end
 
     run_tests()

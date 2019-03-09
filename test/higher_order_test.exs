@@ -26,13 +26,11 @@ defmodule ExUnit.HigherOrderTest do
   end
 
   property "it does the work in stages with help from an anonymous function" do
-    check all int <- integer(),
-              int != 0 do
-      val = abs(int)
-      result = Worker.perform_complex_work(val, fn x -> register(x) end)
+    check all int <- positive_integer() do
+      result = Worker.perform_complex_work(int, fn x -> register(x) end)
       receiver = get_receiver()
 
-      assert Worker.do_some_work(val) == receiver
+      assert Worker.do_some_work(int) == receiver
       assert Worker.do_other_work(receiver) == result
     end
   end

@@ -486,12 +486,12 @@ defmodule Receiver do
   end
 
   @spec get(receiver) :: term
-  def get(name), do: do_get(name, & &1)
+  def get(name), do: get(name, & &1)
 
   @spec get(receiver, (state -> term)) :: term
-  def get(name, fun) when is_function(fun, 1), do: do_get(name, fun)
-
-  defp do_get(name, fun) when (not is_nil(name) and is_atom(name)) or is_pid(name) do
+  def get(name, fun)
+      when (not is_nil(name) and is_atom(name)) or is_pid(name) or
+             (is_tuple(name) and is_function(fun, 1)) do
     name
     |> validate_name()
     |> do_get(fun)
@@ -570,14 +570,16 @@ defmodule Receiver do
   @spec validate_name(receiver) :: {module, atom}
   defp validate_name(name) do
     case which_receiver(name) do
-      {_, _} = receiver ->
-        receiver
+      {_, _} = tuple ->
+        tuple
 
       _ ->
+        name = with {mod, atom} <- name, do: "{#{inspect(mod)}, #{inspect(atom)}}"
+
         raise ArgumentError,
           message:
             "Expected an atom, pid, or two element tuple associated with a Receiver. Got #{
-              IO.inspect(name)
+              inspect(name)
             }"
     end
   end
@@ -612,6 +614,13 @@ defmodule Receiver do
     case Registry.keys(Receiver.Registry, pid) do
       [{_, _} = name] -> name
       [] -> nil
+    end
+  end
+
+  def which_receiver({_, _} = tuple) do
+    case Registry.lookup(Receiver.Registry, tuple) do
+      [{pid, name}] when is_pid(pid) and is_atom(name) -> tuple
+      _ -> nil
     end
   end
 
