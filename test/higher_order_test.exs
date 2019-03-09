@@ -6,13 +6,14 @@ defmodule Worker do
     |> do_other_work()
   end
 
-  def do_some_work(val), do: :math.log(val)
+  def do_some_work(val), do: :math.log(val) |> round()
 
-  def do_other_work(val), do: :math.exp(val) |> :math.floor()
+  def do_other_work(val), do: :math.exp(val) |> round()
 end
 
 defmodule ExUnit.HigherOrderTest do
   use ExUnit.Case
+  use ExUnitProperties
   use Receiver, test: true
 
   setup do
@@ -24,13 +25,15 @@ defmodule ExUnit.HigherOrderTest do
     get_and_update_receiver(fn _ -> {x, x} end)
   end
 
-  test "it does the work in stages with help from an anonymous function" do
-    assert get_receiver() == nil
+  property "it does the work in stages with help from an anonymous function" do
+    check all int <- integer(),
+              int != 0 do
+      val = abs(int)
+      result = Worker.perform_complex_work(val, fn x -> register(x) end)
+      receiver = get_receiver()
 
-    result = Worker.perform_complex_work(1.0, fn x -> register(x) end)
-    receiver = get_receiver()
-
-    assert Worker.do_some_work(1.0) == receiver
-    assert Worker.do_other_work(receiver) == result
+      assert Worker.do_some_work(val) == receiver
+      assert Worker.do_other_work(receiver) == result
+    end
   end
 end
