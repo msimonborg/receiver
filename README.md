@@ -4,20 +4,10 @@
 [![Coverage Status](https://coveralls.io/repos/github/msimonborg/receiver/badge.svg?branch=master)](https://coveralls.io/github/msimonborg/receiver?branch=master)
 [![Hex pm](https://img.shields.io/hexpm/v/receiver.svg?style=flat)](https://hex.pm/packages/receiver)
 
-Conveniences for creating simple processes that hold state.
+Conveniences for creating processes that hold important state.
 
-## Installation
-
-```elixir
-def deps do
-  [
-    {:receiver, "~> 0.1.0"}
-  ]
-end
-```
-
-A simple wrapper around an `Agent` that reduces boilerplate code and makes it easy to store
-state in a separate supervised process.
+A wrapper around an `Agent` that adds callbacks and reduces boilerplate code, making it
+quick and easy to store important state in a separate supervised process.
 
 # Use cases
 
@@ -32,6 +22,16 @@ state in a separate supervised process.
   order function you can test if the function is executed as intended by checking the change in state.
 
 ### [See documentation](https://hexdocs.pm/receiver/Receiver.html) for other usage and complete API reference.
+
+## Installation
+
+```elixir
+def deps do
+  [
+    {:receiver, "~> 0.1.0"}
+  ]
+end
+```
 
 # Examples
 
@@ -93,10 +93,10 @@ Counter.increment(2)
 # Get the updated state of the counter
 Counter.get()
 #=> 2
-# Stop the counter, initiating a restart
+# Stop the counter, initiating a restart and losing the counter state
 GenServer.stop(Counter)
 #=> :ok
-# Get the counter state, which was persisted across restarts
+# Get the counter state, which was persisted across restarts with help of the stash
 Counter.get()
 #=> 2
 ```
@@ -104,7 +104,7 @@ Counter.get()
 ## Config
 A `Receiver` can be used to store application configuration, and even be initialized
 at startup. Since the receiver processes are supervised in a separate application
-that is a dependency of yours, it will already be ready to start even before your
+that is started as a dependency of yours, it will already be ready to start even before your
 application's `start/2` callback has returned:
 
 ```elixir
