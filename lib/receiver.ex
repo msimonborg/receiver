@@ -591,8 +591,8 @@ defmodule Receiver do
 
   @spec get(receiver, (state -> term)) :: term
   def get(name, fun)
-      when (not is_nil(name) and is_atom(name)) or is_pid(name) or
-             is_tuple(name) and is_function(fun, 1) do
+      when is_function(fun, 1) and
+             ((not is_nil(name) and is_atom(name)) or is_pid(name) or is_tuple(name)) do
     name
     |> validate_name()
     |> do_get(fun)
@@ -609,8 +609,8 @@ defmodule Receiver do
 
   @spec update(receiver, (state -> state)) :: :ok
   def update(name, fun)
-      when (not is_nil(name) and is_atom(name)) or is_pid(name) or
-             is_tuple(name) and is_function(fun, 1) do
+      when is_function(fun, 1) and
+             ((not is_nil(name) and is_atom(name)) or is_pid(name) or is_tuple(name)) do
     name
     |> validate_name()
     |> do_update(fun)
@@ -629,8 +629,8 @@ defmodule Receiver do
 
   @spec get_and_update(receiver, (state -> {term, state})) :: term
   def get_and_update(name, fun)
-      when (not is_nil(name) and is_atom(name)) or is_pid(name) or
-             is_tuple(name) and is_function(fun, 1) do
+      when is_function(fun, 1) and
+             ((not is_nil(name) and is_atom(name)) or is_pid(name) or is_tuple(name)) do
     name
     |> validate_name()
     |> do_get_and_update(fun)
