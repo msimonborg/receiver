@@ -346,31 +346,6 @@ defmodule Receiver do
                       handle_get_and_update: 3
 
   @doc """
-  Starts a new receiver without links (outside of a supervision tree).
-
-  See `start_link/3` for more information.
-  """
-  @spec start(module, (() -> term), options) :: on_start
-  def start(module, fun, opts \\ [])
-      when is_atom(module) and is_function(fun, 0) and is_list(opts) do
-    do_start(module, [fun], opts)
-  end
-
-  @spec start(module, module, atom, args, options) :: on_start
-  def start(module, mod, fun, args, opts \\ [])
-      when is_atom(module) and is_atom(mod) and is_atom(fun) and is_list(args) and is_list(opts) do
-    do_start(module, [mod, fun, args], opts)
-  end
-
-  @spec do_start(module, args, options) :: on_start
-  defp do_start(module, args, opts) do
-    attrs = get_start_attrs(module, args, opts)
-
-    Agent.start(initialization_func(attrs), name: attrs.name)
-    |> invoke_handle_start_callback(module, attrs)
-  end
-
-  @doc """
   Starts a `Receiver` process linked to the current process.
 
   This is the function used to start a receiver as part of a supervision tree. It accepts a list
@@ -401,20 +376,43 @@ defmodule Receiver do
   @spec start_link(module, (() -> term), options) :: on_start
   def start_link(module, fun, opts \\ [])
       when is_atom(module) and is_function(fun, 0) and is_list(opts) do
-    do_start_link(module, [fun], opts)
+    do_start(:link, module, [fun], opts)
   end
 
   @spec start_link(module, module, atom, args, options) :: on_start
   def start_link(module, mod, fun, args, opts \\ [])
       when is_atom(module) and is_atom(mod) and is_atom(fun) and is_list(args) and is_list(opts) do
-    do_start_link(module, [mod, fun, args], opts)
+    do_start(:link, module, [mod, fun, args], opts)
   end
 
-  @spec do_start_link(module, args, options) :: on_start
-  defp do_start_link(module, args, opts) do
+  @doc """
+  Starts a new receiver without links (outside of a supervision tree).
+
+  See `start_link/3` for more information.
+  """
+  @spec start(module, (() -> term), options) :: on_start
+  def start(module, fun, opts \\ [])
+      when is_atom(module) and is_function(fun, 0) and is_list(opts) do
+    do_start(:nolink, module, [fun], opts)
+  end
+
+  @spec start(module, module, atom, args, options) :: on_start
+  def start(module, mod, fun, args, opts \\ [])
+      when is_atom(module) and is_atom(mod) and is_atom(fun) and is_list(args) and is_list(opts) do
+    do_start(:nolink, module, [mod, fun, args], opts)
+  end
+
+  @spec do_start(:link | :nolink, module, args, options) :: on_start
+  defp do_start(link, module, args, opts) do
     attrs = get_start_attrs(module, args, opts)
 
-    Agent.start_link(initialization_func(attrs), name: attrs.name)
+    start_function =
+      case link do
+        :link -> :start_link
+        :nolink -> :start
+      end
+
+    apply(Agent, start_function, [initialization_func(attrs), [name: attrs.name]])
     |> invoke_handle_start_callback(module, attrs)
   end
 
@@ -494,9 +492,6 @@ defmodule Receiver do
     |> do_get(fun)
   end
 
-  @spec do_get(receiver | not_found_error, fun) :: term | no_return
-  defp do_get({:error, {exception, stacktrace}}, _), do: reraise(exception, stacktrace)
-
   defp do_get({module, receiver} = name, fun) do
     state = Agent.get(whereis(name), fun)
 
@@ -514,9 +509,6 @@ defmodule Receiver do
     |> validate_name()
     |> do_update(fun)
   end
-
-  @spec do_update(receiver | not_found_error, fun) :: :ok | no_return
-  defp do_update({:error, {exception, stacktrace}}, _), do: reraise(exception, stacktrace)
 
   defp do_update({module, receiver} = name, fun) do
     {old_state, new_state} =
@@ -537,9 +529,6 @@ defmodule Receiver do
     |> validate_name()
     |> do_get_and_update(fun)
   end
-
-  @spec do_get_and_update(receiver | not_found_error, fun) :: term | no_return
-  defp do_get_and_update({:error, {exception, stacktrace}}, _), do: reraise(exception, stacktrace)
 
   defp do_get_and_update({module, receiver} = name, fun) do
     {return_val, new_state} =
@@ -562,9 +551,6 @@ defmodule Receiver do
     |> validate_name()
     |> do_stop(reason, timeout)
   end
-
-  @spec do_stop(receiver | not_found_error, reason :: term, timeout) :: :ok | no_return
-  defp do_stop({:error, {exception, stacktrace}}, _, _), do: reraise(exception, stacktrace)
 
   defp do_stop({module, receiver} = name, reason, timeout) do
     pid = whereis(name)
@@ -606,7 +592,7 @@ defmodule Receiver do
             """
           }
 
-        {:error, {exception, stacktrace}}
+        reraise exception, stacktrace
     end
   end
 
