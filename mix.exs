@@ -50,7 +50,9 @@ defmodule Receiver.MixProject do
       {:ex_doc, "~> 0.19.3", only: [:dev, :test]},
       {:excoveralls, "~> 0.10", only: :test},
       {:stream_data, "~> 0.1", only: :test},
-      {:credo, "~> 1.0.0", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.0.0", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 0.5", only: [:dev], runtime: false},
+      {:inch_ex, "~> 2.0", only: [:docs]}
     ]
   end
 end
