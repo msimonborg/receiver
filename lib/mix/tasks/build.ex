@@ -19,7 +19,7 @@ if Mix.env() == :test do
     @spec run_formatter([binary()]) :: any()
     def run_formatter(argv) do
       if System.version() >= @required_elixir_version do
-        IO.puts("#{cyan()}#{bright()}Running formatter")
+        Mix.shell().info("#{cyan()}#{bright()}Running formatter")
         Format.run(["--check-equivalent" | argv])
       else
         raise RuntimeError, """

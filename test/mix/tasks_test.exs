@@ -37,10 +37,18 @@ defmodule ExUnit.Mix.Tasks.Receiver.BuildTest do
     end
   end
 
-  test "runs coveralls.safe_travis" do
-    with_mock Travis, run: fn _ -> nil end do
-      SafeTravis.run(["hello"])
-      assert_called(Travis.run(["hello"]))
+  describe "mix coveralls.safe_travis" do
+    test "runs" do
+      with_mock Travis, run: fn _ -> nil end do
+        SafeTravis.run(["hello"])
+        assert_called(Travis.run(["hello"]))
+      end
+    end
+
+    test "catches ExCoveralls.ReportUploadError" do
+      with_mock Travis, run: fn _ -> raise ExCoveralls.ReportUploadError end do
+        assert capture_io(:stderr, fn -> SafeTravis.run(["hello"]) end)
+      end
     end
   end
 end
