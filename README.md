@@ -1,5 +1,7 @@
 # Receiver
 
+[![Build Status](https://travis-ci.org/msimonborg/receiver.svg?branch=master)](https://travis-ci.org/msimonborg/receiver)
+
 Conveniences for creating simple processes that hold state.
 
 ## Installation
