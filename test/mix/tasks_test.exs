@@ -11,19 +11,18 @@ defmodule ExUnit.Mix.Tasks.Receiver.BuildTest do
       {Docs, [], [run: fn _ -> nil end]},
       {Inch, [], [run: fn _ -> nil end]}
     ]) do
-
       Build.run([])
-      assert_called Coveralls.Html.run([])
-      assert_called Credo.run(["--strict"])
-      assert_called Docs.run([])
-      assert_called Inch.run([])
+      assert_called(Coveralls.Html.run([]))
+      assert_called(Credo.run(["--strict"]))
+      assert_called(Docs.run([]))
+      assert_called(Inch.run([]))
     end
   end
 
   test "runs coveralls.safe_travis" do
-    with_mock Travis, [run: fn _ -> nil end] do
+    with_mock Travis, run: fn _ -> nil end do
       SafeTravis.run(["hello"])
-      assert_called Travis.run(["hello"])
+      assert_called(Travis.run(["hello"]))
     end
   end
 end
