@@ -13,7 +13,9 @@ defmodule Receiver.MixProject do
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,
-        "coveralls.html": :test
+        "coveralls.html": :test,
+        "coveralls.travis": :test,
+        "coveralls.safe_travis": :test
       ],
       description: description(),
       package: package(),
