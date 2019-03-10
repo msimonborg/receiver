@@ -8,7 +8,7 @@ defmodule Mix.Tasks.Coveralls.SafeTravis do
   @shortdoc "A safe `coveralls.travis` variant that doesn't crash on failed upload."
 
   def run(args) do
-    Coveralls.do_run(args, type: "travis")
+    Coveralls.Travis.run(args)
   rescue
     e in ExCoveralls.ReportUploadError ->
       Mix.shell().error("Failed coveralls upload: #{Exception.message(e)}")

@@ -9,7 +9,6 @@ otp_release:
 
 script:
   - mix coveralls.safe_travis
-  - mix dialyzer --halt-exit-status
   - mix credo --strict
 
 after_script:

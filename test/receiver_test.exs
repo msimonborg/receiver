@@ -4,7 +4,7 @@ defmodule(Three, do: use(Receiver, name: LockBox))
 defmodule(Four, do: def(initial_state(arg), do: %{locked: [arg]}))
 
 defmodule ExUnit.ReceiverTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
   use ExUnitProperties
   use Receiver, test: true, as: :tester, name: Tester
   doctest Receiver
