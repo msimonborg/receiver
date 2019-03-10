@@ -255,10 +255,16 @@ defmodule Receiver do
   @type receiver :: atom | {module, atom} | pid
 
   @typedoc "Return values of `start_supervised/3` and `start_supervised/5`"
-  @type on_start_supervised :: DynamicSupervisor.on_start_child()
+  @type on_start_supervised :: DynamicSupervisor.on_start_child() | start_error
 
   @typedoc "Return values of `start/3` and `start/5`"
-  @type on_start :: Agent.on_start()
+  @type on_start :: Agent.on_start() | start_error
+
+  @typedoc "Error tuple returned for pattern matching on function results"
+  @type start_error :: {:error, {%UndefinedFunctionError{} | %FunctionClauseError{}, stacktrace :: list}}
+
+  @typedoc "Error returned from bad arguments"
+  @type not_found_error :: {:error, {%Receiver.NotFoundError{}, stacktrace :: list}}
 
   @typedoc "A list of function arguments"
   @type args :: [term]
@@ -343,17 +349,6 @@ defmodule Receiver do
   Starts a new receiver without links (outside of a supervision tree).
 
   See `start_link/3` for more information.
-
-  ## Examples
-
-      {:ok, _} = Receiver.start(Example, fn -> %{} end)
-      Receiver.get({Example, :receiver})
-      #=> %{}
-
-      {:ok, _} = Receiver.start(Example, fn -> %{} end, name: Example.Map)
-      Receiver.get(Example.Map)
-      #=> %{}
-
   """
   @spec start(module, (() -> term), options) :: on_start
   def start(module, fun, opts \\ [])
@@ -394,8 +389,8 @@ defmodule Receiver do
 
       Supervisor.start_link(children, strategy: one_for_one)
 
-  Only use this is if you really need to supervise your own receiver. In most cases you should
-  use the `start_supervised*` functions to start a supervised receiver dynamically in an isolated
+  Only use this is if you want to supervise your own receiver from application startup. In most cases you can
+  simply use the `start_supervised*` functions to start a supervised receiver dynamically in an isolated
   application. See `start_supervised/3` and `start_supervised/5` for more information.
   """
   @spec start_link(start_args) :: on_start
@@ -442,7 +437,7 @@ defmodule Receiver do
     DynamicSupervisor.start_child(Receiver.Sup, child)
   end
 
-  @spec invoke_handle_start_callback(on_start | on_start_supervised, module, start_attrs) ::
+  @spec invoke_handle_start_callback(Agent.on_start() | DynamicSupervisor.on_start_child(), module, start_attrs) ::
           on_start | on_start_supervised
   defp invoke_handle_start_callback(on_start_result, module, attrs) do
     with {:ok, pid} <- on_start_result do
@@ -450,12 +445,14 @@ defmodule Receiver do
       {:ok, pid}
     end
   rescue
-    # Catch `UndefinedFunctionError` raised from invoking the `handle_start/3` callback on a
-    # module that hasn't defined it. At this point the receiver has already been started and
-    # needs to be stopped gracefully so it isn't orphaned, then raise the exception.
-    e in UndefinedFunctionError ->
-      stop({module, attrs.receiver})
-      raise e
+    # Catch `UndefinedFunctionError` (raised from invoking the `handle_start/3` callback on a
+    # module that hasn't defined it) and `FunctionClauseError` (raised from a bad pattern match,
+    # usually due to a bad receiver name passed with the `:as` options). At this point the receiver
+    # has already been started and needs to be stopped gracefully so it isn't orphaned, then raise
+    # the exception.
+    exception in [UndefinedFunctionError, FunctionClauseError] ->
+      Agent.stop(attrs.name)
+      {:error, {exception, __STACKTRACE__}}
   end
 
   @spec get_start_attrs(module, args, options) :: start_attrs
@@ -491,11 +488,14 @@ defmodule Receiver do
   @spec get(receiver, (state -> term)) :: term
   def get(name, fun)
       when (not is_nil(name) and is_atom(name)) or is_pid(name) or
-             (is_tuple(name) and is_function(fun, 1)) do
+             is_tuple(name) and is_function(fun, 1) do
     name
     |> validate_name()
     |> do_get(fun)
   end
+
+  @spec do_get(receiver | not_found_error, fun) :: term | no_return
+  defp do_get({:error, {exception, stacktrace}}, _), do: reraise(exception, stacktrace)
 
   defp do_get({module, receiver} = name, fun) do
     state = Agent.get(whereis(name), fun)
@@ -507,13 +507,16 @@ defmodule Receiver do
   end
 
   @spec update(receiver, (state -> state)) :: :ok
-  def update(name, fun) when is_function(fun, 1), do: do_update(name, fun)
-
-  defp do_update(name, fun) when (not is_nil(name) and is_atom(name)) or is_pid(name) do
+  def update(name, fun)
+      when (not is_nil(name) and is_atom(name)) or is_pid(name) or
+             is_tuple(name) and is_function(fun, 1) do
     name
     |> validate_name()
     |> do_update(fun)
   end
+
+  @spec do_update(receiver | not_found_error, fun) :: :ok | no_return
+  defp do_update({:error, {exception, stacktrace}}, _), do: reraise(exception, stacktrace)
 
   defp do_update({module, receiver} = name, fun) do
     {old_state, new_state} =
@@ -527,13 +530,16 @@ defmodule Receiver do
   end
 
   @spec get_and_update(receiver, (state -> {term, state})) :: term
-  def get_and_update(name, fun) when is_function(fun, 1), do: do_get_and_update(name, fun)
-
-  defp do_get_and_update(name, fun) when (not is_nil(name) and is_atom(name)) or is_pid(name) do
+  def get_and_update(name, fun)
+      when (not is_nil(name) and is_atom(name)) or is_pid(name) or
+             is_tuple(name) and is_function(fun, 1) do
     name
     |> validate_name()
     |> do_get_and_update(fun)
   end
+
+  @spec do_get_and_update(receiver | not_found_error, fun) :: term | no_return
+  defp do_get_and_update({:error, {exception, stacktrace}}, _), do: reraise(exception, stacktrace)
 
   defp do_get_and_update({module, receiver} = name, fun) do
     {return_val, new_state} =
@@ -549,13 +555,16 @@ defmodule Receiver do
   end
 
   @spec stop(receiver, reason :: term, timeout) :: :ok
-  def stop(name, reason \\ :normal, timeout \\ :infinity), do: do_stop(name, reason, timeout)
-
-  defp do_stop(name, reason, timeout) when (not is_nil(name) and is_atom(name)) or is_pid(name) do
+  def stop(name, reason \\ :normal, timeout \\ :infinity)
+      when (not is_nil(name) and is_atom(name)) or is_pid(name) or
+             is_tuple(name) do
     name
     |> validate_name()
     |> do_stop(reason, timeout)
   end
+
+  @spec do_stop(receiver | not_found_error, reason :: term, timeout) :: :ok | no_return
+  defp do_stop({:error, {exception, stacktrace}}, _, _), do: reraise(exception, stacktrace)
 
   defp do_stop({module, receiver} = name, reason, timeout) do
     pid = whereis(name)
@@ -567,20 +576,37 @@ defmodule Receiver do
     end
   end
 
-  @spec validate_name(receiver) :: {module, atom}
+  @spec validate_name(receiver) :: {module, atom} | not_found_error
   defp validate_name(name) do
     case which_receiver(name) do
       {_, _} = tuple ->
         tuple
 
       _ ->
-        name = with {mod, atom} <- name, do: "{#{inspect(mod)}, #{inspect(atom)}}"
+        name =
+          with {mod, atom} <- name, do: "{#{inspect(mod)}, #{inspect(atom)}}"
 
-        raise ArgumentError,
-          message:
-            "Expected an atom, pid, or two element tuple associated with a Receiver. Got #{
-              inspect(name)
-            }"
+        stacktrace =
+          self()
+          |> Process.info(:current_stacktrace)
+          |> elem(1)
+          |> List.delete_at(0)
+          |> List.delete_at(0)
+
+        exception =
+          %Receiver.NotFoundError{
+            message: """
+              Expected input to be one of the following terms associate with a Receiver:
+
+                  * atom - the global process name
+                  * pid - the identifier of the process
+                  * {module, atom} - the callback module and receiver name
+
+              No Receiver is associated with the input: #{inspect(name)}
+            """
+          }
+
+        {:error, {exception, stacktrace}}
     end
   end
 
