@@ -4,4 +4,3 @@ elixir:
   - 1.8.1
 otp_release:
   - 20.3
-  - 21
