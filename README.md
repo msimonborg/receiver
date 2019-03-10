@@ -1,6 +1,8 @@
 # Receiver
 
 [![Build Status](https://travis-ci.org/msimonborg/receiver.svg?branch=master)](https://travis-ci.org/msimonborg/receiver)
+[![Coverage Status](https://coveralls.io/repos/github/msimonborg/receiver/badge.svg?branch=master)](https://coveralls.io/github/msimonborg/receiver?branch=master)
+[![Hex pm](https://img.shields.io/hexpm/v/receiver.svg?style=flat)](https://hex.pm/packages/receiver)
 
 Conveniences for creating simple processes that hold state.
 

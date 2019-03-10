@@ -6,9 +6,9 @@ defmodule Worker do
     |> do_other_work()
   end
 
-  def do_some_work(val), do: :math.log(val) |> round()
+  def do_some_work(val), do: val |> :math.log() |> round()
 
-  def do_other_work(val), do: :math.exp(val) |> round()
+  def do_other_work(val), do: val |> :math.exp() |> round()
 end
 
 defmodule ExUnit.HigherOrderTest do

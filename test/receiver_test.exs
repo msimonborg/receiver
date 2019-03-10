@@ -90,25 +90,25 @@ defmodule ExUnit.ReceiverTest do
   describe "start_link/1" do
     test "accepts a list with two elements" do
       {:ok, pid} = Receiver.start_link([One, fn -> :received end])
-      assert self() in (Process.info(pid) |> Keyword.get(:links)) == true
+      assert self() in (pid |> Process.info() |> Keyword.get(:links)) == true
       :ok = Agent.stop(pid)
     end
 
     test "accepts a list with three elements" do
       {:ok, pid} = Receiver.start_link([Two, fn -> :received end, [as: :backup]])
-      assert self() in (Process.info(pid) |> Keyword.get(:links)) == true
+      assert self() in (pid |> Process.info() |> Keyword.get(:links)) == true
       :ok = Agent.stop(pid)
     end
 
     test "accepts a list with four elements" do
       {:ok, pid} = Receiver.start_link([One, Four, :initial_state, [:box]])
-      assert self() in (Process.info(pid) |> Keyword.get(:links)) == true
+      assert self() in (pid |> Process.info() |> Keyword.get(:links)) == true
       :ok = Agent.stop(pid)
     end
 
     test "accepts a list with five elements" do
       {:ok, pid} = Receiver.start_link([Three, Four, :initial_state, [:box], [name: LockBox]])
-      assert self() in (Process.info(pid) |> Keyword.get(:links)) == true
+      assert self() in (pid |> Process.info() |> Keyword.get(:links)) == true
       :ok = Agent.stop(pid)
     end
   end
@@ -116,13 +116,13 @@ defmodule ExUnit.ReceiverTest do
   describe "start_link/3" do
     test "accepts a callback module and funtion" do
       {:ok, pid} = Receiver.start_link(One, fn -> %{} end)
-      assert self() in (Process.info(pid) |> Keyword.get(:links)) == true
+      assert self() in (pid |> Process.info() |> Keyword.get(:links)) == true
       :ok = Agent.stop(pid)
     end
 
     test "accepts a callback module, function, and options" do
       {:ok, pid} = Receiver.start_link(Two, fn -> %{} end, as: :backup)
-      assert self() in (Process.info(pid) |> Keyword.get(:links)) == true
+      assert self() in (pid |> Process.info() |> Keyword.get(:links)) == true
       :ok = Agent.stop(pid)
     end
 
@@ -156,13 +156,13 @@ defmodule ExUnit.ReceiverTest do
   describe "start_link/5" do
     test "accepts a callback module and mfa" do
       {:ok, pid} = Receiver.start_link(One, Four, :initial_state, [:box])
-      assert self() in (Process.info(pid) |> Keyword.get(:links)) == true
+      assert self() in (pid |> Process.info() |> Keyword.get(:links)) == true
       :ok = Agent.stop(pid)
     end
 
     test "accepts a callback module, mfa, and opts" do
       {:ok, pid} = Receiver.start_link(Three, Four, :initial_state, [:box], name: LockBox)
-      assert self() in (Process.info(pid) |> Keyword.get(:links)) == true
+      assert self() in (pid |> Process.info() |> Keyword.get(:links)) == true
       :ok = Agent.stop(pid)
     end
 
@@ -196,13 +196,13 @@ defmodule ExUnit.ReceiverTest do
   describe "start_supervised/3" do
     test "accepts a callback module and funtion" do
       {:ok, pid} = Receiver.start_supervised(One, fn -> %{} end)
-      assert pid in (Process.whereis(Receiver.Sup) |> Process.info() |> Keyword.get(:links))
+      assert pid in (Receiver.Sup |> Process.whereis() |> Process.info() |> Keyword.get(:links))
       :ok = Agent.stop(pid)
     end
 
     test "accepts a callback module, function, and options" do
       {:ok, pid} = Receiver.start_supervised(Two, fn -> %{} end, as: :backup)
-      assert pid in (Process.whereis(Receiver.Sup) |> Process.info() |> Keyword.get(:links))
+      assert pid in (Receiver.Sup |> Process.whereis() |> Process.info() |> Keyword.get(:links))
       :ok = Agent.stop(pid)
     end
 
@@ -236,13 +236,13 @@ defmodule ExUnit.ReceiverTest do
   describe "start_supervised/5" do
     test "accepts a callback module and mfa" do
       {:ok, pid} = Receiver.start_supervised(One, Four, :initial_state, [:box])
-      assert pid in (Process.whereis(Receiver.Sup) |> Process.info() |> Keyword.get(:links))
+      assert pid in (Receiver.Sup |> Process.whereis() |> Process.info() |> Keyword.get(:links))
       :ok = Agent.stop(pid)
     end
 
     test "accepts a callback module, mfa, and opts" do
       {:ok, pid} = Receiver.start_supervised(Three, Four, :initial_state, [:box], name: LockBox)
-      assert pid in (Process.whereis(Receiver.Sup) |> Process.info() |> Keyword.get(:links))
+      assert pid in (Receiver.Sup |> Process.whereis() |> Process.info() |> Keyword.get(:links))
       :ok = Agent.stop(pid)
     end
 

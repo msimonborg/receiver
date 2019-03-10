@@ -6,7 +6,7 @@ defmodule ExUnit.OverridableTest do
     {:ok, super(fun)}
   end
 
-  defp start_receiver() do
+  defp start_receiver do
     start_receiver(:ready)
   end
 
@@ -18,7 +18,7 @@ defmodule ExUnit.OverridableTest do
     super(fn state -> "updated from #{state}: " <> value end)
   end
 
-  defp stop_receiver() do
+  defp stop_receiver do
     case super() do
       :ok -> :stopped
     end

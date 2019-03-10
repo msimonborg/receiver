@@ -413,7 +413,8 @@ defmodule Receiver do
         :nolink -> :start
       end
 
-    apply(Agent, start_function, [initialization_func(attrs), [name: attrs.name]])
+    Agent
+    |> apply(start_function, [initialization_func(attrs), [name: attrs.name]])
     |> invoke_handle_start_callback(module, attrs)
   end
 
