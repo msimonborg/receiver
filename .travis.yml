@@ -7,7 +7,7 @@ elixir:
 otp_release:
   - 20.3
 before_script:
-  - mix format --check-formatted
+  - if elixir -v | grep -q 1.8; then mix format --check-formatted; fi # only enforce formatting for Elixir ~> 1.8
 
 script:
   - mix coveralls.safe_travis
