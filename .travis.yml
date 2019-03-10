@@ -6,6 +6,8 @@ elixir:
 
 otp_release:
   - 20.3
+before_script:
+  - mix format --check-formatted
 
 script:
   - mix coveralls.safe_travis
