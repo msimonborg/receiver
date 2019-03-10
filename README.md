@@ -140,6 +140,56 @@ MyApp.config.setup
 #=> :default
 ```
 
+# ExUnitReceiver
+A `Receiver` can be used to test higher order functions by using `ExUnitReceiver` in an `ExUnit` test case.
+Consider the following example:
+
+```elixir
+defmodule Worker do
+  def perform_complex_work(val, fun) do
+    val
+    |> do_some_work()
+    |> fun.()
+    |> do_other_work()
+  end
+
+  def do_some_work(val), do: val |> :math.log() |> round()
+
+  def do_other_work(val), do: val |> :math.exp() |> round()
+end
+
+defmodule ExUnit.HigherOrderTest do
+  use ExUnit.Case
+  use ExUnitProperties
+  use ExUnitReceiver
+
+  setup do
+    start_receiver(fn -> nil end)
+    :ok
+  end
+
+  def register(x) do
+    get_and_update_receiver(fn _ -> {x, x} end)
+  end
+
+  property "it does the work in stages with help from an anonymous function" do
+    check all int <- positive_integer() do
+      result = Worker.perform_complex_work(int, fn x -> register(x) end)
+      receiver = get_receiver()
+
+      assert Worker.do_some_work(int) == receiver
+      assert Worker.do_other_work(receiver) == result
+    end
+  end
+end
+```
+
+When you call the `start_receiver` functions within a `setup` block, it delegates to
+`ExUnit.Callbacks.start_supervised/2`. This will start the receiver as a supervised process under
+the test supervisor, automatically starting and shutting it down between tests to clean up state.
+This can help you test that your higher order functions are executing with the correct arguments
+and returning the expected results.
+
 # Contributing
 Clone this repository and run the tests with `mix test` to make sure they pass. Make your changes, writing tests for all new functionality. Changes will not be merged without accompanying tests. Run `mix test` again to make sure all tests are passing, and run `mix format` to format the code, too. Now you're ready to submit a [pull request](https://help.github.com/en/articles/about-pull-requests)
 

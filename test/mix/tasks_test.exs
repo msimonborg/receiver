@@ -21,8 +21,6 @@ defmodule ExUnit.Mix.Tasks.Receiver.BuildTest do
   end
 
   test "runs coveralls.safe_travis" do
-    # with_mock Travis, [run: fn _ -> raise ExCoveralls.ReportUploadError end] do
-      # assert capture_io(fn -> SafeTravis.run(["hello"]) end) == "Failed coveralls upload: error"
     with_mock Travis, [run: fn _ -> nil end] do
       SafeTravis.run(["hello"])
       assert_called Travis.run(["hello"])

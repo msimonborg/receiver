@@ -16,7 +16,7 @@ defmodule Receiver do
 
     * Testing higher order functions. By passing a function call to a `Receiver` process into a higher
     order function you can test if the function is executed as intended by checking the change in state.
-    See [example](#testing) below.
+    See `ExUnitReceiver` module documentation.
 
   ## <a name="stash"></a>Using as a stash
 
@@ -314,55 +314,6 @@ defmodule Receiver do
   world, that may have no impact on the return value and do not expose the receiver itself to errors or block
   the process from answering other callers. The goal is to keep the functions passed to the receiver as simple
   as possible and perform more complex operations in the callbacks.
-
-  ## <a name="testing"></a>Usage in testing
-
-  A `Receiver` can also be used to test higher order functions by using it in an ExUnit test case and passing
-  the `test: true` option. Consider the following example:
-
-      defmodule Worker do
-        def perform_complex_work(val, fun) do
-          val
-          |> do_some_work()
-          |> fun.()
-          |> do_other_work()
-        end
-
-        def do_some_work(val), do: val |> :math.log() |> round()
-
-        def do_other_work(val), do: val |> :math.exp() |> round()
-      end
-
-      defmodule ExUnit.HigherOrderTest do
-        use ExUnit.Case
-        use ExUnitProperties
-        use Receiver, test: true
-
-        setup do
-          start_receiver(fn -> nil end)
-          :ok
-        end
-
-        def register(x) do
-          get_and_update_receiver(fn _ -> {x, x} end)
-        end
-
-        property "it does the work in stages with help from an anonymous function" do
-          check all int <- positive_integer() do
-            result = Worker.perform_complex_work(int, fn x -> register(x) end)
-            receiver = get_receiver()
-
-            assert Worker.do_some_work(int) == receiver
-            assert Worker.do_other_work(receiver) == result
-          end
-        end
-      end
-
-  When the `:test` option is set to `true` within a module using `ExUnit.Case`, you can call the `start_receiver`
-  functions within a `setup` block, delegating to `ExUnit.Callbacks.start_supervised/2`. This will start the
-  receiver as a supervised process under the test supervisor, automatically starting and shutting it down
-  between tests to clean up state. This can help you test that your higher order functions are executing with
-  the correct arguments and returning the expected results.
   """
 
   use Agent, restart: :transient

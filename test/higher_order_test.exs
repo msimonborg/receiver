@@ -14,7 +14,7 @@ end
 defmodule ExUnit.HigherOrderTest do
   use ExUnit.Case
   use ExUnitProperties
-  use Receiver, test: true
+  use ExUnitReceiver
 
   setup do
     start_receiver(fn -> nil end)

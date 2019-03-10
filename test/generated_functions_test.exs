@@ -26,7 +26,7 @@ end
 
 defmodule ExUnit.GeneratedFunctionsTest do
   use ExUnit.Case
-  use Receiver, test: true, as: :tester
+  use ExUnitReceiver, as: :tester
   import ExUnit.GeneratedFunctionsTest.Runner
 
   describe "initialized with a function" do

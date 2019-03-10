@@ -6,7 +6,7 @@ defmodule(Four, do: def(initial_state(arg), do: %{locked: [arg]}))
 defmodule ExUnit.ReceiverTest do
   use ExUnit.Case, async: false
   use ExUnitProperties
-  use Receiver, test: true, as: :tester, name: Tester
+  use ExUnitReceiver, as: :tester, name: Tester
   doctest Receiver
 
   describe "start/3" do
