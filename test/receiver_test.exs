@@ -22,11 +22,13 @@ defmodule ExUnit.ReceiverTest do
 
     test "returns an error tuple when the wrong receiver name is given" do
       {:error, {error, _}} = Receiver.start(One, fn -> [] end, as: :wrong)
+
       assert_raise(
         FunctionClauseError,
         "no function clause matching in One.handle_start/3",
         fn -> raise error end
       )
+
       assert Receiver.whereis({One, :wrong}) == nil
     end
 
@@ -35,6 +37,7 @@ defmodule ExUnit.ReceiverTest do
                 mod not in [One, Two, Three, Four],
                 mod_to_s = String.trim("#{mod}", "Elixir.") do
         {:error, {error, _}} = Receiver.start(mod, fn -> %{} end)
+
         assert_raise(
           UndefinedFunctionError,
           "function #{mod_to_s}.handle_start/3 is undefined (module #{mod_to_s} is not available)",
@@ -57,14 +60,15 @@ defmodule ExUnit.ReceiverTest do
       :ok = Agent.stop(pid)
     end
 
-
     test "returns an error tuple when the wrong receiver name is given" do
       {:error, {error, _}} = Receiver.start(One, Four, :initial_state, [:box], as: :wrong)
+
       assert_raise(
         FunctionClauseError,
         "no function clause matching in One.handle_start/3",
         fn -> raise error end
       )
+
       assert Receiver.whereis({One, :wrong}) == nil
     end
 
@@ -73,6 +77,7 @@ defmodule ExUnit.ReceiverTest do
                 mod not in [One, Two, Three, Four],
                 mod_to_s = String.trim("#{mod}", "Elixir.") do
         {:error, {error, _}} = Receiver.start(mod, Four, :initial_state, [:box])
+
         assert_raise(
           UndefinedFunctionError,
           "function #{mod_to_s}.handle_start/3 is undefined (module #{mod_to_s} is not available)",
@@ -121,14 +126,15 @@ defmodule ExUnit.ReceiverTest do
       :ok = Agent.stop(pid)
     end
 
-
     test "returns an error tuple when the wrong receiver name is given" do
       {:error, {error, _}} = Receiver.start_link(One, fn -> [] end, as: :wrong)
+
       assert_raise(
         FunctionClauseError,
         "no function clause matching in One.handle_start/3",
         fn -> raise error end
       )
+
       assert Receiver.whereis({One, :wrong}) == nil
     end
 
@@ -137,6 +143,7 @@ defmodule ExUnit.ReceiverTest do
                 mod not in [One, Two, Three, Four],
                 mod_to_s = String.trim("#{mod}", "Elixir.") do
         {:error, {error, _}} = Receiver.start_link(mod, fn -> %{} end)
+
         assert_raise(
           UndefinedFunctionError,
           "function #{mod_to_s}.handle_start/3 is undefined (module #{mod_to_s} is not available)",
@@ -161,11 +168,13 @@ defmodule ExUnit.ReceiverTest do
 
     test "returns an error tuple when the wrong receiver name is given" do
       {:error, {error, _}} = Receiver.start_link(One, Four, :initial_state, [:box], as: :wrong)
+
       assert_raise(
         FunctionClauseError,
         "no function clause matching in One.handle_start/3",
         fn -> raise error end
       )
+
       assert Receiver.whereis({One, :wrong}) == nil
     end
 
@@ -174,6 +183,7 @@ defmodule ExUnit.ReceiverTest do
                 mod not in [One, Two, Three, Four],
                 mod_to_s = String.trim("#{mod}", "Elixir.") do
         {:error, {error, _}} = Receiver.start_link(mod, Four, :initial_state, [:box])
+
         assert_raise(
           UndefinedFunctionError,
           "function #{mod_to_s}.handle_start/3 is undefined (module #{mod_to_s} is not available)",
@@ -182,7 +192,6 @@ defmodule ExUnit.ReceiverTest do
       end
     end
   end
-
 
   describe "start_supervised/3" do
     test "accepts a callback module and funtion" do
@@ -199,11 +208,13 @@ defmodule ExUnit.ReceiverTest do
 
     test "returns an error tuple when the wrong receiver name is given" do
       {:error, {error, _}} = Receiver.start_supervised(One, fn -> [] end, as: :wrong)
+
       assert_raise(
         FunctionClauseError,
         "no function clause matching in One.handle_start/3",
         fn -> raise error end
       )
+
       assert Receiver.whereis({One, :wrong}) == nil
     end
 
@@ -212,6 +223,7 @@ defmodule ExUnit.ReceiverTest do
                 mod not in [One, Two, Three, Four],
                 mod_to_s = String.trim("#{mod}", "Elixir.") do
         {:error, {error, _}} = Receiver.start_supervised(mod, fn -> [] end)
+
         assert_raise(
           UndefinedFunctionError,
           "function #{mod_to_s}.handle_start/3 is undefined (module #{mod_to_s} is not available)",
@@ -235,12 +247,15 @@ defmodule ExUnit.ReceiverTest do
     end
 
     test "returns an error tuple when the wrong receiver name is given" do
-      {:error, {error, _}} = Receiver.start_supervised(One, Four, :initial_state, [:box], as: :wrong)
+      {:error, {error, _}} =
+        Receiver.start_supervised(One, Four, :initial_state, [:box], as: :wrong)
+
       assert_raise(
         FunctionClauseError,
         "no function clause matching in One.handle_start/3",
         fn -> raise error end
       )
+
       assert Receiver.whereis({One, :wrong}) == nil
     end
 
@@ -249,6 +264,7 @@ defmodule ExUnit.ReceiverTest do
                 mod not in [One, Two, Three, Four],
                 mod_to_s = String.trim("#{mod}", "Elixir.") do
         {:error, {error, _}} = Receiver.start_supervised(mod, Four, :initial_state, [:box])
+
         assert_raise(
           UndefinedFunctionError,
           "function #{mod_to_s}.handle_start/3 is undefined (module #{mod_to_s} is not available)",
@@ -257,7 +273,6 @@ defmodule ExUnit.ReceiverTest do
       end
     end
   end
-
 
   describe "get/1 and get/2" do
     setup do
@@ -342,15 +357,15 @@ defmodule ExUnit.ReceiverTest do
     end
 
     test "accepts a receiver name in the form of `{module, atom}`" do
-      assert Receiver.get_and_update({__MODULE__, :tester}, & {&1, &1}) == :test
+      assert Receiver.get_and_update({__MODULE__, :tester}, &{&1, &1}) == :test
     end
 
     test "accepts a receiver name in the form of an atom" do
-      assert Receiver.get_and_update(Tester, & {&1, &1}) == :test
+      assert Receiver.get_and_update(Tester, &{&1, &1}) == :test
     end
 
     test "accepts a pid", %{pid: pid} do
-      assert Receiver.get_and_update(pid, & {&1, &1}) == :test
+      assert Receiver.get_and_update(pid, &{&1, &1}) == :test
     end
 
     property "raises a Receiver.NotFoundError with an invalid receiver input" do
@@ -360,7 +375,10 @@ defmodule ExUnit.ReceiverTest do
                 module != __MODULE__,
                 receiver != :tester,
                 name != Tester do
-        assert_raise Receiver.NotFoundError, fn -> Receiver.get_and_update({module, receiver}, & &1) end
+        assert_raise Receiver.NotFoundError, fn ->
+          Receiver.get_and_update({module, receiver}, & &1)
+        end
+
         assert_raise Receiver.NotFoundError, fn -> Receiver.get_and_update(name, & &1) end
       end
     end

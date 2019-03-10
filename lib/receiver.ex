@@ -261,7 +261,8 @@ defmodule Receiver do
   @type on_start :: Agent.on_start() | start_error
 
   @typedoc "Error tuple returned for pattern matching on function results"
-  @type start_error :: {:error, {%UndefinedFunctionError{} | %FunctionClauseError{}, stacktrace :: list}}
+  @type start_error ::
+          {:error, {%UndefinedFunctionError{} | %FunctionClauseError{}, stacktrace :: list}}
 
   @typedoc "Error returned from bad arguments"
   @type not_found_error :: {:error, {%Receiver.NotFoundError{}, stacktrace :: list}}
@@ -435,7 +436,11 @@ defmodule Receiver do
     DynamicSupervisor.start_child(Receiver.Sup, child)
   end
 
-  @spec invoke_handle_start_callback(Agent.on_start() | DynamicSupervisor.on_start_child(), module, start_attrs) ::
+  @spec invoke_handle_start_callback(
+          Agent.on_start() | DynamicSupervisor.on_start_child(),
+          module,
+          start_attrs
+        ) ::
           on_start | on_start_supervised
   defp invoke_handle_start_callback(on_start_result, module, attrs) do
     with {:ok, pid} <- on_start_result do
@@ -569,8 +574,7 @@ defmodule Receiver do
         tuple
 
       _ ->
-        name =
-          with {mod, atom} <- name, do: "{#{inspect(mod)}, #{inspect(atom)}}"
+        name = with {mod, atom} <- name, do: "{#{inspect(mod)}, #{inspect(atom)}}"
 
         stacktrace =
           self()
@@ -579,18 +583,17 @@ defmodule Receiver do
           |> List.delete_at(0)
           |> List.delete_at(0)
 
-        exception =
-          %Receiver.NotFoundError{
-            message: """
-              Expected input to be one of the following terms associate with a Receiver:
+        exception = %Receiver.NotFoundError{
+          message: """
+            Expected input to be one of the following terms associate with a Receiver:
 
-                  * atom - the global process name
-                  * pid - the identifier of the process
-                  * {module, atom} - the callback module and receiver name
+                * atom - the global process name
+                * pid - the identifier of the process
+                * {module, atom} - the callback module and receiver name
 
-              No Receiver is associated with the input: #{inspect(name)}
-            """
-          }
+            No Receiver is associated with the input: #{inspect(name)}
+          """
+        }
 
         reraise exception, stacktrace
     end
