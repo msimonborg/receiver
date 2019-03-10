@@ -52,7 +52,7 @@ defmodule Receiver.MixProject do
       {:excoveralls, "~> 0.10", only: :test},
       {:stream_data, "~> 0.1", only: :test},
       {:credo, "~> 1.0.0", only: [:dev, :test], runtime: false},
-      {:inch_ex, "~> 2.0", only: [:docs]},
+      {:inch_ex, "~> 2.0", only: [:dev, :test, :docs]},
       {:mock, "~> 0.3.0", only: :test}
     ]
   end
