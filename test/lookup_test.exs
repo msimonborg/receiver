@@ -1,4 +1,4 @@
-defmodule ExUnit.LookupTest do
+defmodule LookupTest do
   use ExUnit.Case
   use ExUnitProperties
   use Receiver, name: Test

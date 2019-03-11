@@ -1,4 +1,4 @@
-defmodule ExUnit.OverridableTest do
+defmodule OverridableTest do
   use ExUnit.Case
   use Receiver
 

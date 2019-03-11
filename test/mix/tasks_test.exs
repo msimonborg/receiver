@@ -1,4 +1,4 @@
-defmodule ExUnit.Mix.Tasks.Receiver.BuildTest do
+defmodule Mix.Tasks.Receiver.BuildTest do
   use ExUnit.Case
   import ExUnit.CaptureIO
   import Mock

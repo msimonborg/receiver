@@ -18,7 +18,7 @@ defmodule ExUnitReceiver do
         def do_other_work(val), do: val |> :math.exp() |> round()
       end
 
-      defmodule ExUnit.HigherOrderTest do
+      defmodule HigherOrderTest do
         use ExUnit.Case
         use ExUnitProperties
         use ExUnitReceiver

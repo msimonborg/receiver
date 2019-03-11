@@ -1,4 +1,4 @@
-defmodule ExUnit.GeneratedFunctionsTest.Runner do
+defmodule GeneratedFunctionsTest.Runner do
   defmacro run_tests do
     quote do
       test "it can get the state of the receiver" do
@@ -24,10 +24,10 @@ defmodule ExUnit.GeneratedFunctionsTest.Runner do
   end
 end
 
-defmodule ExUnit.GeneratedFunctionsTest do
+defmodule GeneratedFunctionsTest do
   use ExUnit.Case
   use ExUnitReceiver, as: :tester
-  import ExUnit.GeneratedFunctionsTest.Runner
+  import GeneratedFunctionsTest.Runner
 
   describe "initialized with a function" do
     setup do

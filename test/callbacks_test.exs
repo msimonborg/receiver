@@ -1,4 +1,4 @@
-defmodule ExUnit.CallbacksTest do
+defmodule CallbacksTest do
   use ExUnit.Case
   use ExUnitProperties
 
