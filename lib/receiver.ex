@@ -245,7 +245,8 @@ defmodule Receiver do
           current_balance = history |> List.first()
           IO.inspect(self(), label: "Handling get from")
           IO.inspect(current_balance, label: "Current balance")
-          :noreply
+
+          {:reply, history}
         end
 
         def handle_update(:ledger, _old_state, new_state) do
@@ -401,12 +402,8 @@ defmodule Receiver do
 
   Returning `{:reply, reply}` causes `reply` to be the return value of `get/1` and `get/2`
   (and the private `get_receiver` client functions).
-
-  Returning `:noreply` defaults the return value of `get*` to the `state`.
-  This can be useful if action needs to be performed with the `state` value but there's no desire
-  to modify the return value of the calling function.
   """
-  @callback handle_get(atom, return_value :: term) :: {:reply, reply :: term} | :noreply
+  @callback handle_get(atom, return_value :: term) :: {:reply, reply :: term}
 
   @doc """
   Invoked in the calling process after an `update` is sent to the receiver. `update/2` will
@@ -437,8 +434,7 @@ defmodule Receiver do
 
   Returning `:noreply` defaults the return value of `get_and_update/2` to `return_val`.
   """
-  @callback handle_get_and_update(atom, return_value :: term, state) ::
-              {:reply, reply :: term} | :noreply
+  @callback handle_get_and_update(atom, return_value :: term, state) :: {:reply, reply :: term}
 
   @optional_callbacks handle_start: 3,
                       handle_stop: 3,
@@ -602,8 +598,19 @@ defmodule Receiver do
     state = Agent.get(whereis(name), fun)
 
     case apply(module, :handle_get, [receiver, state]) do
-      {:reply, reply} -> reply
-      :noreply -> state
+      {:reply, reply} ->
+        reply
+
+      other ->
+        raise Receiver.CallbackError, """
+        handle_get/2 must have a return in the form:
+
+          * {:reply, reply}
+
+        where `reply` is the value to return from the get/1 or get/2 function
+
+        Got #{inspect(other)}
+        """
     end
   end
 
@@ -644,8 +651,19 @@ defmodule Receiver do
       end)
 
     case apply(module, :handle_get_and_update, [receiver, return_val, new_state]) do
-      {:reply, reply} -> reply
-      :noreply -> return_val
+      {:reply, reply} ->
+        reply
+
+      other ->
+        raise Receiver.CallbackError, """
+        handle_get_and_update/3 must have a return in the form:
+
+          * {:reply, reply}
+
+        where `reply` is the value to return from get_and_update/2
+
+        Got #{inspect(other)}
+        """
     end
   end
 
@@ -707,16 +725,18 @@ defmodule Receiver do
   callback module and an atom that is the name of the receiver, or a PID.
   """
   @spec whereis(receiver) :: pid | nil
+  def whereis(nil), do: nil
+
+  def whereis(pid) when is_pid(pid), do: pid |> which_receiver() |> whereis()
+
+  def whereis(name) when is_atom(name), do: name |> which_receiver() |> whereis()
+
   def whereis({mod, receiver} = name) when is_atom(mod) and is_atom(receiver) do
     case Registry.lookup(Receiver.Registry, name) do
       [{pid, _}] -> pid
       _ -> nil
     end
   end
-
-  def whereis(pid) when is_pid(pid), do: pid
-
-  def whereis(name) when is_atom(name), do: Process.whereis(name)
 
   @doc """
   Returns a two element tuple containing the callback module and name of the receiver associated
@@ -752,14 +772,14 @@ defmodule Receiver do
   receiver. Returns nil if no name was registered with the process.
   """
   @spec which_name(pid | receiver) :: atom | nil
-  def which_name(pid) when is_pid(pid) do
-    with receiver <- which_receiver(pid),
-         [{^pid, name}] <- Registry.lookup(Receiver.Registry, receiver),
-         do: name
-  end
+  def which_name(pid) when is_pid(pid), do: do_which_name(pid)
+  def which_name({_, _} = tuple), do: do_which_name(tuple)
+  def which_name(name) when is_atom(name), do: do_which_name(name)
 
-  def which_name({_, _} = receiver) do
-    with [{_, name}] <- Registry.lookup(Receiver.Registry, receiver), do: name
+  defp do_which_name(receiver) do
+    with {_, _} = receiver <- which_receiver(receiver),
+         [{_, name}] <- Registry.lookup(Receiver.Registry, receiver),
+         do: name
   end
 
   @spec registered_name(module, receiver) :: registered_name
@@ -838,13 +858,13 @@ defmodule Receiver do
       def handle_start(unquote(as), pid, state), do: :ok
 
       @doc false
-      def handle_get(unquote(as), state), do: :noreply
+      def handle_get(unquote(as), return_val), do: {:reply, return_val}
 
       @doc false
       def handle_update(unquote(as), old_state, new_state), do: :ok
 
       @doc false
-      def handle_get_and_update(unquote(as), return_val, new_state), do: :noreply
+      def handle_get_and_update(unquote(as), return_val, new_state), do: {:reply, return_val}
 
       defoverridable handle_stop: 3,
                      handle_start: 3,

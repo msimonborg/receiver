@@ -433,23 +433,4 @@ defmodule ExUnit.ReceiverTest do
       end
     end
   end
-
-  describe "which_name/1" do
-    test "looks up the registered name of a receiver by pid or two-element tuple" do
-      {:ok, pid} = Receiver.start(One, fn -> [] end, name: One)
-      assert Receiver.which_name(pid) == One
-      assert Receiver.which_name({One, :receiver}) == One
-      :ok = Receiver.stop(pid)
-
-      {:ok, pid} = Receiver.start(Two, fn -> [] end, as: :backup, name: Two)
-      assert Receiver.which_name(pid) == Two
-      assert Receiver.which_name({Two, :backup}) == Two
-      :ok = Receiver.stop(Two)
-
-      {:ok, pid} = Receiver.start(Three, Four, :initial_state, [:box], name: LockBox)
-      assert Receiver.which_name(pid) == LockBox
-      assert Receiver.which_name({Three, :receiver}) == LockBox
-      :ok = Receiver.stop({Three, :receiver})
-    end
-  end
 end
