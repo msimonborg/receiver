@@ -517,18 +517,18 @@ defmodule Receiver do
   @spec start_supervised(module, (() -> term), options) :: on_start_supervised
   def start_supervised(module, fun, opts \\ [])
       when is_atom(module) and is_function(fun, 0) and is_list(opts) do
-    do_start_supervised(module, [fun], opts)
+    do_start_supervised([module, fun, opts])
   end
 
   @spec start_supervised(module, module, atom, args, options) :: on_start_supervised
   def start_supervised(module, mod, fun, args, opts \\ [])
       when is_atom(module) and is_atom(mod) and is_atom(fun) and is_list(args) and is_list(opts) do
-    do_start_supervised(module, [mod, fun, args], opts)
+    do_start_supervised([module, mod, fun, args, opts])
   end
 
-  @spec do_start_supervised(module, args, options) :: on_start_supervised
-  defp do_start_supervised(module, args, opts) do
-    child = {Receiver, [module | args] ++ [opts]}
+  @spec do_start_supervised(args) :: on_start_supervised
+  defp do_start_supervised(args) do
+    child = {Receiver, args}
 
     DynamicSupervisor.start_child(Receiver.Sup, child)
   end
