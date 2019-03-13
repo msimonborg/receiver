@@ -362,7 +362,7 @@ defmodule Receiver do
           module: module,
           receiver: atom,
           name: atom | registered_name,
-          initial_state: term
+          args: args
         }
 
   @doc """
@@ -510,7 +510,7 @@ defmodule Receiver do
       end
 
     Agent
-    |> apply(start_function, [initialization_func(attrs), [name: attrs.name]])
+    |> apply(start_function, [initialization_func(self(), attrs), [name: attrs.name]])
     |> invoke_handle_start_callback(module, attrs)
   end
 
@@ -541,7 +541,12 @@ defmodule Receiver do
           on_start | on_start_supervised
   defp invoke_handle_start_callback(on_start_result, module, attrs) do
     with {:ok, pid} <- on_start_result do
-      apply(module, :handle_start, [attrs.receiver, pid, attrs.initial_state])
+      initial_state =
+        receive do
+          {:initial_state, result} -> result
+        end
+
+      apply(module, :handle_start, [attrs.receiver, pid, initial_state])
       {:ok, pid}
     end
   rescue
@@ -557,19 +562,18 @@ defmodule Receiver do
 
   @spec get_start_attrs(module, args, options) :: start_attrs
   defp get_start_attrs(module, args, opts) do
-    task = apply(Task.Supervisor, :async, [Receiver.TaskSup | args])
     receiver = Keyword.get(opts, :as, :receiver)
 
     %{
       module: module,
       receiver: receiver,
       name: Keyword.get(opts, :name, registered_name(module, receiver)),
-      initial_state: Task.await(task)
+      args: args
     }
   end
 
-  @spec initialization_func(start_attrs) :: (() -> state)
-  defp initialization_func(attrs) do
+  @spec initialization_func(pid, start_attrs) :: (() -> state)
+  defp initialization_func(caller, attrs) do
     # If an atom is provided as the `:name` option at `start*` it overrides the `:via` naming pattern,
     # skipping registration with the `Registry`. In this case the process needs to be manually registered
     # on initialization so the PID is associated with the receiver name and registered process name.
@@ -577,8 +581,10 @@ defmodule Receiver do
     # `{:error, {:already_registered, pid}}` and is effectively a noop. We do this from within the
     # initialization function because the calling process will be the one registered. See `Registry.register/3`.
     fn ->
+      task = apply(Task.Supervisor, :async, [Receiver.TaskSup | attrs.args])
       Registry.register(Receiver.Registry, {attrs.module, attrs.receiver}, attrs.name)
-      attrs.initial_state
+      send(caller, {:initial_state, result = Task.await(task)})
+      result
     end
   end
 

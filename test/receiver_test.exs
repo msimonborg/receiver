@@ -9,6 +9,36 @@ defmodule ReceiverTest do
   use ExUnitReceiver, as: :tester, name: Tester
   doctest Receiver
 
+  describe "start functions" do
+    setup do
+      msg = "haven't sent any messages"
+      start_supervised({Receiver, [One, fn -> msg end]})
+      %{msg: msg}
+    end
+
+    property "aren't executed when receiver is already started", %{msg: msg} do
+      check all val <- term() do
+        me = self()
+        {:error, {:already_started, _}} =
+          Receiver.start(One, fn -> send(me, val) end)
+
+        refute_receive(^val, 5)
+
+        {:error, {:already_started, _}} =
+          Receiver.start_link(One, fn -> send(me, val) end)
+
+        refute_receive(^val, 5)
+
+        {:error, {:already_started, _}} =
+          Receiver.start_supervised(One, fn -> send(me, val) end)
+
+        refute_receive(^val, 5)
+
+        assert Receiver.get({One, :receiver}, &(&1)) == msg
+      end
+    end
+  end
+
   describe "start/3" do
     test "accepts a callback module and funtion" do
       {:ok, pid} = Receiver.start(One, fn -> %{} end)
@@ -30,6 +60,7 @@ defmodule ReceiverTest do
       )
 
       assert Receiver.whereis({One, :wrong}) == nil
+      assert Receiver.whereis({One, :receiver}) == nil
     end
 
     property "returns an error tuple when a bad callback module is given" do
