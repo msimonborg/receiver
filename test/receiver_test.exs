@@ -19,22 +19,16 @@ defmodule ReceiverTest do
     property "aren't executed when receiver is already started", %{msg: msg} do
       check all val <- term() do
         me = self()
-        {:error, {:already_started, _}} =
-          Receiver.start(One, fn -> send(me, val) end)
-
+        {:error, {:already_started, _}} = Receiver.start(One, fn -> send(me, val) end)
         refute_receive(^val, 5)
 
-        {:error, {:already_started, _}} =
-          Receiver.start_link(One, fn -> send(me, val) end)
-
+        {:error, {:already_started, _}} = Receiver.start_link(One, fn -> send(me, val) end)
         refute_receive(^val, 5)
 
-        {:error, {:already_started, _}} =
-          Receiver.start_supervised(One, fn -> send(me, val) end)
-
+        {:error, {:already_started, _}} = Receiver.start_supervised(One, fn -> send(me, val) end)
         refute_receive(^val, 5)
 
-        assert Receiver.get({One, :receiver}, &(&1)) == msg
+        assert Receiver.get({One, :receiver}, & &1) == msg
       end
     end
   end
