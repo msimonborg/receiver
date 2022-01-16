@@ -4,9 +4,9 @@ defmodule Receiver.MixProject do
   def project do
     [
       app: :receiver,
-      version: "0.2.1",
-      elixir: "~> 1.7",
-      start_permanent: Mix.env() == :prod,
+      version: "0.2.2",
+      elixir: ">= 1.7.0",
+      start_permanent: false,
       deps: deps(),
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: [
@@ -48,12 +48,13 @@ defmodule Receiver.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ex_doc, "~> 0.19.3", only: [:dev, :test]},
-      {:excoveralls, "~> 0.10", only: :test},
-      {:stream_data, "~> 0.1", only: :test},
-      {:credo, "~> 1.0.0", only: [:dev, :test], runtime: false},
-      {:inch_ex, "~> 2.0", only: [:dev, :test]},
-      {:mock, "~> 0.3.0", only: :test}
+      {:ex_doc, ">= 0.0.0", only: [:dev, :test]},
+      {:excoveralls, ">= 0.0.0", only: :test},
+      {:stream_data, ">= 0.0.0", only: :test},
+      {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
+      {:inch_ex, ">= 0.0.0", only: [:dev, :test]},
+      {:mock, ">= 0.0.0", only: :test},
+      {:jason, ">= 0.0.0", only: [:dev, :test]}
     ]
   end
 end
