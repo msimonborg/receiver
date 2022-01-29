@@ -26,7 +26,7 @@ defmodule HigherOrderTest do
   end
 
   property "it does the work in stages with help from an anonymous function" do
-    check all int <- positive_integer() do
+    check all(int <- positive_integer()) do
       result = Worker.perform_complex_work(int, fn x -> register(x) end)
       receiver = get_receiver()
 

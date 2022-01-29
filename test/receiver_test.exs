@@ -17,7 +17,7 @@ defmodule ReceiverTest do
     end
 
     property "aren't executed when receiver is already started", %{msg: msg} do
-      check all val <- term() do
+      check all(val <- term()) do
         me = self()
         {:error, {:already_started, _}} = Receiver.start(One, fn -> send(me, val) end)
         refute_receive(^val, 5)
@@ -58,9 +58,11 @@ defmodule ReceiverTest do
     end
 
     property "returns an error tuple when a bad callback module is given" do
-      check all mod <- atom(:alias),
-                mod not in [One, Two, Three, Four],
-                mod_to_s = String.trim("#{mod}", "Elixir.") do
+      check all(
+              mod <- atom(:alias),
+              mod not in [One, Two, Three, Four],
+              mod_to_s = String.trim("#{mod}", "Elixir.")
+            ) do
         {:error, {error, _}} = Receiver.start(mod, fn -> %{} end)
 
         assert_raise(
@@ -98,9 +100,11 @@ defmodule ReceiverTest do
     end
 
     property "returns an error tuple when a bad callback module is given" do
-      check all mod <- atom(:alias),
-                mod not in [One, Two, Three, Four],
-                mod_to_s = String.trim("#{mod}", "Elixir.") do
+      check all(
+              mod <- atom(:alias),
+              mod not in [One, Two, Three, Four],
+              mod_to_s = String.trim("#{mod}", "Elixir.")
+            ) do
         {:error, {error, _}} = Receiver.start(mod, Four, :initial_state, [:box])
 
         assert_raise(
@@ -164,9 +168,11 @@ defmodule ReceiverTest do
     end
 
     property "returns an error tuple a bad callback module is given" do
-      check all mod <- atom(:alias),
-                mod not in [One, Two, Three, Four],
-                mod_to_s = String.trim("#{mod}", "Elixir.") do
+      check all(
+              mod <- atom(:alias),
+              mod not in [One, Two, Three, Four],
+              mod_to_s = String.trim("#{mod}", "Elixir.")
+            ) do
         {:error, {error, _}} = Receiver.start_link(mod, fn -> %{} end)
 
         assert_raise(
@@ -204,9 +210,11 @@ defmodule ReceiverTest do
     end
 
     property "returns an error tuple when a bad callback module is given" do
-      check all mod <- atom(:alias),
-                mod not in [One, Two, Three, Four],
-                mod_to_s = String.trim("#{mod}", "Elixir.") do
+      check all(
+              mod <- atom(:alias),
+              mod not in [One, Two, Three, Four],
+              mod_to_s = String.trim("#{mod}", "Elixir.")
+            ) do
         {:error, {error, _}} = Receiver.start_link(mod, Four, :initial_state, [:box])
 
         assert_raise(
@@ -244,9 +252,11 @@ defmodule ReceiverTest do
     end
 
     property "returns an error tuple when a bad callback module is given" do
-      check all mod <- atom(:alias),
-                mod not in [One, Two, Three, Four],
-                mod_to_s = String.trim("#{mod}", "Elixir.") do
+      check all(
+              mod <- atom(:alias),
+              mod not in [One, Two, Three, Four],
+              mod_to_s = String.trim("#{mod}", "Elixir.")
+            ) do
         {:error, {error, _}} = Receiver.start_supervised(mod, fn -> [] end)
 
         assert_raise(
@@ -285,9 +295,11 @@ defmodule ReceiverTest do
     end
 
     property "returns an error tuple when a bad callback module is given" do
-      check all mod <- atom(:alias),
-                mod not in [One, Two, Three, Four],
-                mod_to_s = String.trim("#{mod}", "Elixir.") do
+      check all(
+              mod <- atom(:alias),
+              mod not in [One, Two, Three, Four],
+              mod_to_s = String.trim("#{mod}", "Elixir.")
+            ) do
         {:error, {error, _}} = Receiver.start_supervised(mod, Four, :initial_state, [:box])
 
         assert_raise(
@@ -318,19 +330,21 @@ defmodule ReceiverTest do
     end
 
     property "raises a Receiver.NotFoundError with an invalid receiver input" do
-      check all module <- atom(:alias),
-                receiver <- atom(:alphanumeric),
-                name <- atom(:alias),
-                module != __MODULE__,
-                receiver != :tester,
-                name != Tester do
+      check all(
+              module <- atom(:alias),
+              receiver <- atom(:alphanumeric),
+              name <- atom(:alias),
+              module != __MODULE__,
+              receiver != :tester,
+              name != Tester
+            ) do
         assert_raise Receiver.NotFoundError, fn -> Receiver.get({module, receiver}) end
         assert_raise Receiver.NotFoundError, fn -> Receiver.get(name) end
       end
     end
 
     property "returns a modified value without updating state" do
-      check all val <- term() do
+      check all(val <- term()) do
         assert Receiver.get(Tester, fn state -> {state, val} end) == {:test, val}
         assert Receiver.get(Tester) == :test
       end
@@ -356,19 +370,21 @@ defmodule ReceiverTest do
     end
 
     property "raises a Receiver.NotFoundError with an invalid receiver input" do
-      check all module <- atom(:alias),
-                receiver <- atom(:alphanumeric),
-                name <- atom(:alias),
-                module != __MODULE__,
-                receiver != :tester,
-                name != Tester do
+      check all(
+              module <- atom(:alias),
+              receiver <- atom(:alphanumeric),
+              name <- atom(:alias),
+              module != __MODULE__,
+              receiver != :tester,
+              name != Tester
+            ) do
         assert_raise Receiver.NotFoundError, fn -> Receiver.update({module, receiver}, & &1) end
         assert_raise Receiver.NotFoundError, fn -> Receiver.update(name, & &1) end
       end
     end
 
     property "updates the state with the return value of the anonymous function" do
-      check all val <- term() do
+      check all(val <- term()) do
         assert Receiver.update(Tester, fn _state -> val end) == :ok
         assert Receiver.get(Tester) == val
       end
@@ -394,12 +410,14 @@ defmodule ReceiverTest do
     end
 
     property "raises a Receiver.NotFoundError with an invalid receiver input" do
-      check all module <- atom(:alias),
-                receiver <- atom(:alphanumeric),
-                name <- atom(:alias),
-                module != __MODULE__,
-                receiver != :tester,
-                name != Tester do
+      check all(
+              module <- atom(:alias),
+              receiver <- atom(:alphanumeric),
+              name <- atom(:alias),
+              module != __MODULE__,
+              receiver != :tester,
+              name != Tester
+            ) do
         assert_raise Receiver.NotFoundError, fn ->
           Receiver.get_and_update({module, receiver}, & &1)
         end
@@ -409,7 +427,7 @@ defmodule ReceiverTest do
     end
 
     property "gets and updates the state with the return value of the anonymous function" do
-      check all new <- term() do
+      check all(new <- term()) do
         previous = Receiver.get(Tester)
         assert Receiver.get_and_update(Tester, fn previous -> {previous, new} end) == previous
         assert Receiver.get(Tester) == new
@@ -436,20 +454,24 @@ defmodule ReceiverTest do
     end
 
     property "raises a Receiver.NotFoundError with an invalid receiver input" do
-      check all module <- atom(:alias),
-                receiver <- atom(:alphanumeric),
-                name <- atom(:alias),
-                module != __MODULE__,
-                receiver != :tester,
-                name != Tester do
+      check all(
+              module <- atom(:alias),
+              receiver <- atom(:alphanumeric),
+              name <- atom(:alias),
+              module != __MODULE__,
+              receiver != :tester,
+              name != Tester
+            ) do
         assert_raise Receiver.NotFoundError, fn -> Receiver.stop({module, receiver}) end
         assert_raise Receiver.NotFoundError, fn -> Receiver.stop(name) end
       end
     end
 
     property "terminates a running Receiver" do
-      check all name <- atom(:alias),
-                name != Tester do
+      check all(
+              name <- atom(:alias),
+              name != Tester
+            ) do
         {:ok, pid} = Receiver.start_link(One, fn -> [] end, name: name)
         assert Process.whereis(name) == pid
         Receiver.stop(name)

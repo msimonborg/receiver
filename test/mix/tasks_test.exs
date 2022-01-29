@@ -21,17 +21,17 @@ defmodule Mix.Tasks.Receiver.BuildTest do
       end
     end
 
-    test "runs the formatter when Elixir >= 1.8" do
-      if System.version() >= "1.8" do
+    test "runs the formatter when Elixir >= 1.8.0" do
+      if Version.compare(System.version(), "1.8.0") != :lt do
         with_mock(Format, run: fn _ -> nil end) do
-          assert capture_io(fn -> Build.run_formatter([]) end)
+          assert capture_io(fn -> Build.run_formatter() end)
                  |> String.contains?("Running formatter")
 
-          assert_called(Format.run(["--check-equivalent"]))
+          assert_called(Format.run([]))
         end
       else
         assert_raise RuntimeError, ~r/Elixir version must be >= 1.8/, fn ->
-          Build.run_formatter([])
+          Build.run_formatter()
         end
       end
     end

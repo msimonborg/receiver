@@ -53,7 +53,7 @@ defmodule CallbacksTest do
   end
 
   property "invokes the handle_start/3 callback passing the pid and state" do
-    check all state <- term() do
+    check all(state <- term()) do
       {:ok, pid} = Producer.start(state)
       assert Consumer.get() == {pid, state}
       :ok = Producer.stop()
@@ -61,7 +61,7 @@ defmodule CallbacksTest do
   end
 
   property "invokes the handle_stop/3 callback passing the reason and state" do
-    check all state <- term() do
+    check all(state <- term()) do
       {:ok, _} = Producer.start(state)
       :ok = Producer.stop()
       assert Consumer.get() == {:normal, state}
@@ -69,14 +69,14 @@ defmodule CallbacksTest do
   end
 
   property "invokes the handle_get/2 callback passing the state and returning a reply" do
-    check all state <- atom(:alphanumeric) do
+    check all(state <- atom(:alphanumeric)) do
       {:ok, _} = Producer.start(state)
       assert Producer.get() == :check_with_consumer
       assert Consumer.get() == state
       :ok = Producer.stop()
     end
 
-    check all state <- string(:ascii) do
+    check all(state <- string(:ascii)) do
       {:ok, _} = Producer.start(state)
       assert Producer.get() == state
       assert Consumer.get() == :check_with_producer
@@ -85,7 +85,7 @@ defmodule CallbacksTest do
   end
 
   property "raises a Receiver.CallbackError when handle_get/2 does not return {:reply, reply}" do
-    check all state <- integer() do
+    check all(state <- integer()) do
       {:ok, _} = Producer.start(state)
 
       assert_raise(Receiver.CallbackError, ~r{handle_get/2 must have a return in the form:}, fn ->
@@ -97,8 +97,10 @@ defmodule CallbacksTest do
   end
 
   property "invokes the handle_update/3 callback passing the old state and new state" do
-    check all old <- term(),
-              new <- term() do
+    check all(
+            old <- term(),
+            new <- term()
+          ) do
       {:ok, _} = Producer.start(old)
 
       assert :ok = Producer.update(new)
@@ -109,9 +111,11 @@ defmodule CallbacksTest do
   end
 
   property "invokes handle_get_and_update/3 passing the return_value and the new state" do
-    check all old <- term(),
-              new <- term(),
-              old != new do
+    check all(
+            old <- term(),
+            new <- term(),
+            old != new
+          ) do
       {:ok, _} = Producer.start(old)
 
       assert Producer.get_and_update(new) == {old, new}
@@ -122,7 +126,7 @@ defmodule CallbacksTest do
   end
 
   property "raises a Receiver.CallbackError when handle_get_and_update/3 does not return {:reply, reply}" do
-    check all val <- term() do
+    check all(val <- term()) do
       {:ok, _} = Producer.start(val)
 
       assert_raise(

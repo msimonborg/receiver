@@ -1,11 +1,13 @@
 defmodule Receiver.MixProject do
   use Mix.Project
 
+  @version "0.2.1"
+
   def project do
     [
       app: :receiver,
-      version: "0.2.2",
-      elixir: ">= 1.7.0",
+      version: @version,
+      elixir: ">= 1.8.0",
       start_permanent: false,
       deps: deps(),
       test_coverage: [tool: ExCoveralls],

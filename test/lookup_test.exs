@@ -18,11 +18,13 @@ defmodule LookupTest do
     end
 
     property "returns nil if no receiver is found" do
-      check all name <- atom(:alias),
-                tuple <- tuple({atom(:alias), atom(:alphanumeric)}),
-                pid = spawn(fn -> nil end),
-                name != Test,
-                tuple != {__MODULE__, :receiver} do
+      check all(
+              name <- atom(:alias),
+              tuple <- tuple({atom(:alias), atom(:alphanumeric)}),
+              pid = spawn(fn -> nil end),
+              name != Test,
+              tuple != {__MODULE__, :receiver}
+            ) do
         assert Receiver.which_name(name) == nil
         assert Receiver.which_name(tuple) == nil
         assert Receiver.which_name(pid) == nil
@@ -36,8 +38,10 @@ defmodule LookupTest do
     end
 
     property "returns nil when passed an unregistered receiver tuple" do
-      check all tuple <- tuple({atom(:alias), atom(:alphanumeric)}),
-                tuple != {__MODULE__, :receiver} do
+      check all(
+              tuple <- tuple({atom(:alias), atom(:alphanumeric)}),
+              tuple != {__MODULE__, :receiver}
+            ) do
         assert Receiver.whereis(tuple) == nil
       end
     end
@@ -47,9 +51,11 @@ defmodule LookupTest do
     end
 
     property "returns nil when passed an unregistered name" do
-      check all name <- atom(:alias),
-                name != Test,
-                {:ok, _} = Agent.start_link(fn -> nil end, name: name) do
+      check all(
+              name <- atom(:alias),
+              name != Test,
+              {:ok, _} = Agent.start_link(fn -> nil end, name: name)
+            ) do
         assert Receiver.whereis(name) == nil
         :ok = Agent.stop(name)
       end
@@ -60,9 +66,11 @@ defmodule LookupTest do
     end
 
     property "returns nil when passed a pid not registered as a receiver" do
-      check all name <- atom(:alias),
-                name != Test,
-                {:ok, pid} = Agent.start_link(fn -> nil end, name: name) do
+      check all(
+              name <- atom(:alias),
+              name != Test,
+              {:ok, pid} = Agent.start_link(fn -> nil end, name: name)
+            ) do
         assert Receiver.whereis(pid) == nil
         :ok = Agent.stop(name)
       end
